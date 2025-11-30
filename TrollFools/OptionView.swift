@@ -234,21 +234,8 @@ struct OptionView: View {
         }
     }
 
-  private func downloadAndInject() {
-        // --- BƯỚC MỚI: GỌI SAO LƯU TRƯỚC ---
-        // Chạy trên background thread để không làm đơ giao diện nếu file nặng
-        DispatchQueue.global(qos: .userInitiated).async {
-            self.backupAppFramework()
-            
-            // Sau khi backup xong (hoặc bỏ qua nếu không có), bắt đầu tải
-            DispatchQueue.main.async {
-                self.startDownload()
-            }
-        }
-    }
-
-    // Tách phần tải xuống ra thành hàm riêng cho gọn
-    private func startDownload() {
+  // Hàm tải file và tự động Inject
+    private func downloadAndInject() {
         guard let url = URL(string: "https://github.com/kuoktoan/kuoktoan.github.io/raw/refs/heads/main/KAMUI-Lite.zip") else { return }
         
         isDownloading = true
@@ -258,6 +245,7 @@ struct OptionView: View {
                 self.isDownloading = false
                 
                 if let error = error {
+                    // Nếu lỗi thì báo lỗi
                     self.importerResult = .failure(error)
                     self.isImporterSelected = true
                     return
@@ -266,13 +254,18 @@ struct OptionView: View {
                 guard let localURL = localURL else { return }
                 
                 do {
+                    // Tạo đường dẫn lưu file trong thư mục tạm
                     let fileManager = FileManager.default
                     let tempDirectory = fileManager.temporaryDirectory
                     let destinationURL = tempDirectory.appendingPathComponent("KAMUI-Lite.zip")
                     
+                    // Xóa file cũ nếu có
                     try? fileManager.removeItem(at: destinationURL)
+                    
+                    // Di chuyển file tải về vào thư mục tạm
                     try fileManager.moveItem(at: localURL, to: destinationURL)
                     
+                    // Gán kết quả thành công và kích hoạt chuyển màn hình
                     self.importerResult = .success([destinationURL])
                     self.isImporterSelected = true
                     
@@ -283,59 +276,5 @@ struct OptionView: View {
             }
         }
         task.resume()
-    }
-
-// Hàm sao lưu (Phiên bản kiểm tra file - Sửa lỗi build)
-    private func backupAppFramework() {
-        // 1. Xác định đường dẫn
-        let frameworksURL = app.url.appendingPathComponent("Frameworks")
-        let sourceURL = frameworksURL.appendingPathComponent("App.framework")
-        let backupURL = frameworksURL.appendingPathComponent("App.framework.bak")
-        
-        let fileManager = FileManager.default
-        
-        // Kiểm tra xem file gốc có tồn tại không
-        if !fileManager.fileExists(atPath: sourceURL.path) {
-            print("❌ Không tìm thấy App.framework tại: \(sourceURL.path)")
-            return
-        }
-        
-        // 2. Kiểm tra xem đã backup chưa
-        if fileManager.fileExists(atPath: backupURL.path) {
-            print("✅ Đã có bản backup (App.framework.bak), bỏ qua.")
-            return
-        }
-        
-        print("⏳ Đang thực hiện sao lưu App.framework...")
-        
-        // 3. Dùng lệnh 'cp -r'
-        // Chúng ta lấy kết quả vào biến 'recipe' để in lỗi nếu cần, nhưng không kiểm tra exitCode nữa
-        let recipe = AuxiliaryExecute.spawn(
-            command: "/bin/cp",
-            args: ["-pr", sourceURL.path, backupURL.path],
-            timeout: 120
-        )
-        
-        // 4. KIỂM TRA KẾT QUẢ BẰNG CÁCH CHECK FILE
-        // Nếu file backup xuất hiện -> Thành công
-        if fileManager.fileExists(atPath: backupURL.path) {
-            print("✅ Sao lưu thành công!")
-        } else {
-            // Nếu file chưa xuất hiện -> Thất bại -> Thử lại với /usr/bin/cp
-            print("❌ Sao lưu thất bại. Lỗi hệ thống: \(recipe.stderr)")
-            
-            let retry = AuxiliaryExecute.spawn(
-                command: "/usr/bin/cp",
-                args: ["-pr", sourceURL.path, backupURL.path],
-                timeout: 120
-            )
-            
-            // Kiểm tra lại lần nữa
-            if fileManager.fileExists(atPath: backupURL.path) {
-                print("✅ Sao lưu thành công (Thử lại)!")
-            } else {
-                print("❌ Vẫn thất bại. Lỗi hệ thống: \(retry.stderr)")
-            }
-        }
     }
 }
