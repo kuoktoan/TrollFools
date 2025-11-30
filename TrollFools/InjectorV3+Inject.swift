@@ -69,7 +69,10 @@ extension InjectorV3 {
             try applyCoreTrustBypass($0)
         }
 
-        let substrateFwkURL = try prepareSubstrate()
+        // --- ĐÃ SỬA: Comment dòng này để không chuẩn bị CydiaSubstrate ---
+        // let substrateFwkURL = try prepareSubstrate()
+        // ----------------------------------------------------------------
+
         guard let targetMachO = try locateAvailableMachO() else {
             DDLogError("All Mach-Os are protected", ddlog: logger)
 
@@ -78,7 +81,11 @@ extension InjectorV3 {
 
         DDLogInfo("Best matched Mach-O is \(targetMachO.path)", ddlog: logger)
 
-        let resourceURLs: [URL] = [substrateFwkURL] + assetURLs
+        // --- ĐÃ SỬA: Chỉ copy assetURLs (file mod), không kèm substrateFwkURL nữa ---
+        // CŨ: let resourceURLs: [URL] = [substrateFwkURL] + assetURLs
+        let resourceURLs: [URL] = assetURLs
+        // ----------------------------------------------------------------------------
+
         try makeAlternate(targetMachO)
         do {
             try copyfiles(resourceURLs)
