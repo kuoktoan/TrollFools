@@ -426,7 +426,7 @@ struct AppListView: View {
 
     @ViewBuilder
     var footer: some View {
-      /*  if #available(iOS 16, *) {
+        if #available(iOS 16, *) {
             footerContent
                 .padding(.vertical, 16)
         } else if #available(iOS 15, *) {
@@ -436,7 +436,7 @@ struct AppListView: View {
         } else {
             footerContent
                 .padding(.all, 16)
-        }*/
+        }
     }
 
     var footerContent: some View {
