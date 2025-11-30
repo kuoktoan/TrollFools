@@ -363,6 +363,7 @@ struct AppListView: View {
     }
 
 func appSection(forKey sectionKey: String) -> some View {
+        // ĐÃ SỬA: Xóa bỏ tham số header: { ... }
         Section {
             ForEach(appList.activeScopeApps[sectionKey] ?? [], id: \.bid) { app in
                 NavigationLink {
@@ -380,15 +381,7 @@ func appSection(forKey sectionKey: String) -> some View {
                     }
                 }
             }
-        } header: {
-            if sectionKey == "_" {
-                paddedHeaderFooterText(NSLocalizedString("No Applications", comment: ""))
-                    .textCase(.none)
-            } else {
-                paddedHeaderFooterText(sectionKey == selectedIndex ? "→ \(sectionKey)" : sectionKey)
-            }
-        } 
-        // --- ĐÃ XÓA PHẦN FOOTER Ở ĐÂY ---
+        }
         .id("AppSection-\(sectionKey)")
     }
 
