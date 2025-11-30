@@ -71,15 +71,7 @@ struct AppListCell: View {
                     app.hasPersistedAssets
                 ))
 
-                if #available(iOS 15, *) {
-                    Text(highlightedId)
-                        .font(.subheadline)
-                        .lineLimit(app.isAdvertisement ? 2 : 1)
-                } else {
-                    Text(app.bid)
-                        .font(.subheadline)
-                        .lineLimit(app.isAdvertisement ? 2 : 1)
-                }
+                // --- ĐÃ XÓA ĐOẠN CODE HIỂN THỊ ID Ở ĐÂY ---
             }
 
             Spacer()
