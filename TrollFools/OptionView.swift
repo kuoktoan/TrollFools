@@ -98,15 +98,6 @@ struct OptionView: View {
 
                 Spacer()
             }
-
-            if verticalSizeClass == .regular {
-                Button {
-                    isSettingsPresented = true
-                } label: {
-                    Label(NSLocalizedString("Advanced Settings", comment: ""),
-                          systemImage: "gear")
-                }
-            }
         }
         .padding()
         .navigationTitle(app.name)
@@ -157,28 +148,11 @@ struct OptionView: View {
                 isImporterSelected = true
             }
         }
-        .sheet(isPresented: $isSettingsPresented) {
-            if #available(iOS 16, *) {
-                SettingsView(app)
-                    .presentationDetents([.medium, .large])
-            } else {
-                SettingsView(app)
-            }
-        }
     }
 
-    @ToolbarContentBuilder
+@ToolbarContentBuilder
     var toolbarContent: some ToolbarContent {
-        ToolbarItemGroup(placement: .topBarTrailing) {
-            if verticalSizeClass == .compact {
-                Button {
-                    isSettingsPresented = true
-                } label: {
-                    Label(NSLocalizedString("Advanced Settings", comment: ""),
-                          systemImage: "gear")
-                }
-            }
-        }
+        // Để trống bên trong
     }
 
     static func warningMessage(_ urls: [URL]) -> String {
