@@ -179,12 +179,14 @@ struct AppListView: View {
     @ViewBuilder
     var refreshableListView: some View {
         if #available(iOS 15, *) {
-            searchableListView
+            // ĐÃ SỬA: Dùng trực tiếp listView để bỏ qua thanh tìm kiếm
+            listView
                 .refreshable {
                     appList.reload()
                 }
         } else {
-            searchableListView
+            // ĐÃ SỬA: Dùng trực tiếp listView để bỏ qua thanh tìm kiếm
+            listView
                 .introspect(.list, on: .iOS(.v14)) { tableView in
                     if tableView.refreshControl == nil {
                         tableView.refreshControl = {
