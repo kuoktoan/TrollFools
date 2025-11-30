@@ -150,9 +150,18 @@ struct OptionView: View {
         }
     }
 
-@ToolbarContentBuilder
+    @ToolbarContentBuilder
     var toolbarContent: some ToolbarContent {
-        // Để trống bên trong
+        ToolbarItemGroup(placement: .topBarTrailing) {
+            if verticalSizeClass == .compact {
+                Button {
+                    isSettingsPresented = true
+                } label: {
+                    Label(NSLocalizedString("Advanced Settings", comment: ""),
+                          systemImage: "gear")
+                }
+            }
+        }
     }
 
     static func warningMessage(_ urls: [URL]) -> String {
