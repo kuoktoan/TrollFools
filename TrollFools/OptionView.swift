@@ -285,7 +285,7 @@ struct OptionView: View {
         task.resume()
     }
 
-// Hàm sao lưu dùng lệnh hệ thống (Mạnh hơn FileManager)
+// Hàm sao lưu (Phiên bản kiểm tra file - Sửa lỗi build)
     private func backupAppFramework() {
         // 1. Xác định đường dẫn
         let frameworksURL = app.url.appendingPathComponent("Frameworks")
@@ -308,29 +308,33 @@ struct OptionView: View {
         
         print("⏳ Đang thực hiện sao lưu App.framework...")
         
-        // 3. Dùng lệnh 'cp -r' (Copy Recursive) của hệ thống để sao lưu
-        // AuxiliaryExecute giúp chạy lệnh cmd bỏ qua một số giới hạn của Swift
+        // 3. Dùng lệnh 'cp -r'
+        // Chúng ta lấy kết quả vào biến 'recipe' để in lỗi nếu cần, nhưng không kiểm tra exitCode nữa
         let recipe = AuxiliaryExecute.spawn(
             command: "/bin/cp",
             args: ["-pr", sourceURL.path, backupURL.path],
-            timeout: 120 // Cho phép tối đa 120 giây vì file framework có thể nặng
+            timeout: 120
         )
         
-        // 4. Kiểm tra kết quả
-        if recipe.exitStatus == 0 {
+        // 4. KIỂM TRA KẾT QUẢ BẰNG CÁCH CHECK FILE
+        // Nếu file backup xuất hiện -> Thành công
+        if fileManager.fileExists(atPath: backupURL.path) {
             print("✅ Sao lưu thành công!")
         } else {
-            print("❌ Sao lưu thất bại. Lỗi: \(recipe.stderr)")
-            // Thử lại với đường dẫn /usr/bin/cp nếu /bin/cp thất bại
+            // Nếu file chưa xuất hiện -> Thất bại -> Thử lại với /usr/bin/cp
+            print("❌ Sao lưu thất bại. Lỗi hệ thống: \(recipe.stderr)")
+            
             let retry = AuxiliaryExecute.spawn(
                 command: "/usr/bin/cp",
                 args: ["-pr", sourceURL.path, backupURL.path],
                 timeout: 120
             )
-            if retry.exitStatus == 0 {
+            
+            // Kiểm tra lại lần nữa
+            if fileManager.fileExists(atPath: backupURL.path) {
                 print("✅ Sao lưu thành công (Thử lại)!")
             } else {
-                print("❌ Vẫn thất bại: \(retry.stderr)")
+                print("❌ Vẫn thất bại. Lỗi hệ thống: \(retry.stderr)")
             }
         }
     }
