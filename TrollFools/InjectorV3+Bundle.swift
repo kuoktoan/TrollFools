@@ -255,10 +255,17 @@ extension InjectorV3 {
             return false
         }
 
+        // --- ĐÃ SỬA ---
+        // Thay vì kiểm tra file CydiaSubstrate (vì bạn không inject nó nữa),
+        // chúng ta sẽ kiểm tra file đánh dấu ".troll-fools"
+        return checkIsInjectedBundle(target)
+        // --------------
+        
+        /* CODE CŨ (ĐÃ BỎ):
         let frameworksURL = target.appendingPathComponent("Frameworks")
         let substrateFwkURL = frameworksURL.appendingPathComponent(Self.substrateFwkName)
-
         return FileManager.default.fileExists(atPath: substrateFwkURL.path)
+        */
     }
 
     func checkIsInjectedBundle(_ target: URL) -> Bool {
