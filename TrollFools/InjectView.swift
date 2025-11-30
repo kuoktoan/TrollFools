@@ -52,7 +52,7 @@ struct InjectView: View {
                 case let .success(url):
                     SuccessView(
                         title: NSLocalizedString("Completed", comment: ""),
-                        logFileURL: url
+                        logFileURL: nil
                     )
                     .onAppear {
                         app.reload()
