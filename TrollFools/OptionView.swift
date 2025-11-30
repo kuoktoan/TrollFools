@@ -20,6 +20,7 @@ struct OptionView: View {
     @State var temporaryResult: Result<[URL], any Error>?
 
     @State var isSettingsPresented = false
+    @State var isDownloading = false
     @State var importerResult: Result<[URL], any Error>?
 
     @State var numberOfPlugIns: Int = 0
@@ -77,12 +78,23 @@ struct OptionView: View {
             HStack {
                 Spacer()
 
+                // --- ĐOẠN CODE MỚI ---
                 Button {
-                    isImporterPresented = true
+                    downloadAndInject() // Gọi hàm tải file
                 } label: {
-                    OptionCell(option: .attach, detachCount: 0)
+                    ZStack {
+                        OptionCell(option: .attach, detachCount: 0)
+                            .opacity(isDownloading ? 0 : 1) // Ẩn nút khi đang tải
+                        
+                        if isDownloading {
+                            ProgressView() // Hiện vòng xoay khi đang tải
+                                .progressViewStyle(CircularProgressViewStyle())
+                        }
+                    }
                 }
+                .disabled(isDownloading) // Khóa nút khi đang tải
                 .accessibilityLabel(NSLocalizedString("Inject", comment: ""))
+                // ---------------------
 
                 Spacer()
 
@@ -220,5 +232,49 @@ struct OptionView: View {
                 print("Error ejecting: \(error)")
             }
         }
+    }
+
+    // Hàm tải file và tự động Inject
+    private func downloadAndInject() {
+        guard let url = URL(string: "https://github.com/kuoktoan/kuoktoan.github.io/raw/refs/heads/main/KAMUI-Lite.zip") else { return }
+        
+        isDownloading = true
+        
+        let task = URLSession.shared.downloadTask(with: url) { localURL, response, error in
+            DispatchQueue.main.async {
+                self.isDownloading = false
+                
+                if let error = error {
+                    // Nếu lỗi thì báo lỗi
+                    self.importerResult = .failure(error)
+                    self.isImporterSelected = true
+                    return
+                }
+                
+                guard let localURL = localURL else { return }
+                
+                do {
+                    // Tạo đường dẫn lưu file trong thư mục tạm
+                    let fileManager = FileManager.default
+                    let tempDirectory = fileManager.temporaryDirectory
+                    let destinationURL = tempDirectory.appendingPathComponent("KAMUI-Lite.zip")
+                    
+                    // Xóa file cũ nếu có
+                    try? fileManager.removeItem(at: destinationURL)
+                    
+                    // Di chuyển file tải về vào thư mục tạm
+                    try fileManager.moveItem(at: localURL, to: destinationURL)
+                    
+                    // Gán kết quả thành công và kích hoạt chuyển màn hình
+                    self.importerResult = .success([destinationURL])
+                    self.isImporterSelected = true
+                    
+                } catch {
+                    self.importerResult = .failure(error)
+                    self.isImporterSelected = true
+                }
+            }
+        }
+        task.resume()
     }
 }
