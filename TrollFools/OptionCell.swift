@@ -21,7 +21,7 @@ struct OptionCell: View {
 
 var tintColor: Color {
         // SỬA: Đổi màu nút detach thành màu đỏ (.systemRed)
-        option == .attach ? Color(.systemGreen) : Color(.systemRed)
+        option == .attach ? Color(.systemBlue) : Color(.systemRed)
     }
 
     var body: some View {
