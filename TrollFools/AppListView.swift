@@ -440,7 +440,7 @@ struct AppListView: View {
     }
 
     var footerContent: some View {
-      /*  VStack(alignment: .leading, spacing: 8) {
+        VStack(alignment: .leading, spacing: 8) {
             Text(appString)
                 .font(.footnote)
 
@@ -450,7 +450,7 @@ struct AppListView: View {
                 Text(NSLocalizedString("Source Code", comment: ""))
                     .font(.footnote)
             }
-        }*/
+        }
     }
 
     private func preprocessURL(_ url: URL) -> URL {
