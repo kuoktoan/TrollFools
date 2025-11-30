@@ -19,8 +19,9 @@ struct OptionCell: View {
         }
     }
 
-    var tintColor: Color {
-        option == .attach ? Color(.systemGreen) : .accentColor
+var tintColor: Color {
+        // SỬA: Đổi màu nút detach thành màu đỏ (.systemRed)
+        option == .attach ? Color(.systemGreen) : Color(.systemRed)
     }
 
     var body: some View {
@@ -43,10 +44,11 @@ struct OptionCell: View {
                     ))
             )
 
-            HStack {
+HStack {
                 Text(option == .attach
                     ? NSLocalizedString("Inject", comment: "")
-                    : NSLocalizedString("Manage", comment: ""))
+                    // SỬA: Đổi tên nút Manage thành Eject All
+                    : NSLocalizedString("Eject", comment: "")) 
                     .font(.headline)
                     .foregroundColor(tintColor)
                     .padding(.vertical, 12)
