@@ -49,7 +49,7 @@ struct InjectView: View {
         VStack {
             if let injectResult {
                 switch injectResult {
-                case let .success(url):
+                case .success(_): // ✅ Sửa thành cái này
                     SuccessView(
                         title: NSLocalizedString("Completed", comment: ""),
                         logFileURL: nil
