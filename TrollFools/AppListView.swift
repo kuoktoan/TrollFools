@@ -360,7 +360,7 @@ struct AppListView: View {
         }
     }
 
-    func appSection(forKey sectionKey: String) -> some View {
+func appSection(forKey sectionKey: String) -> some View {
         Section {
             ForEach(appList.activeScopeApps[sectionKey] ?? [], id: \.bid) { app in
                 NavigationLink {
@@ -385,11 +385,8 @@ struct AppListView: View {
             } else {
                 paddedHeaderFooterText(sectionKey == selectedIndex ? "→ \(sectionKey)" : sectionKey)
             }
-        } footer: {
-            if (sectionKey == "_" || sectionKey == appList.activeScopeApps.keys.last) && !appList.isSelectorMode && !appList.filter.isSearching {
-                footer
-            }
-        }
+        } 
+        // --- ĐÃ XÓA PHẦN FOOTER Ở ĐÂY ---
         .id("AppSection-\(sectionKey)")
     }
 
