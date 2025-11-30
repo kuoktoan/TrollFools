@@ -113,36 +113,19 @@ final class AppListModel: ObservableObject {
     }
 
     func performFilter() {
-    var filteredApplications = _allApplications
+        var filteredApplications = _allApplications
 
-    if !filter.searchKeyword.isEmpty {
-        filteredApplications = filteredApplications.filter {
-            $0.name.localizedCaseInsensitiveContains(filter.searchKeyword) || $0.bid.localizedCaseInsensitiveContains(filter.searchKeyword) ||
-                (
-                    $0.latinName.localizedCaseInsensitiveContains(
-                        filter.searchKeyword
-                            .components(separatedBy: .whitespaces).joined()
+        if !filter.searchKeyword.isEmpty {
+            filteredApplications = filteredApplications.filter {
+                $0.name.localizedCaseInsensitiveContains(filter.searchKeyword) || $0.bid.localizedCaseInsensitiveContains(filter.searchKeyword) ||
+                    (
+                        $0.latinName.localizedCaseInsensitiveContains(
+                            filter.searchKeyword
+                                .components(separatedBy: .whitespaces).joined()
+                        )
                     )
-                )
+            }
         }
-    }
-
-    if filter.showPatchedOnly {
-        filteredApplications = filteredApplications.filter { $0.isInjected || $0.hasPersistedAssets }
-    }
-
-    switch activeScope {
-    case .all:
-        activeScopeApps = Self.groupedAppList(filteredApplications)
-    case .user:
-        activeScopeApps = Self.groupedAppList(filteredApplications.filter { $0.isUser })
-    case .troll:
-        activeScopeApps = Self.groupedAppList(filteredApplications.filter { $0.isFromTroll })
-    case .system:
-        activeScopeApps = Self.groupedAppList(filteredApplications.filter { $0.isFromApple })
-    }
-}
-
 
         if filter.showPatchedOnly {
             filteredApplications = filteredApplications.filter { $0.isInjected || $0.hasPersistedAssets }
