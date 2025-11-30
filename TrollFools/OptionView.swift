@@ -285,35 +285,53 @@ struct OptionView: View {
         task.resume()
     }
 
-    // Hàm sao lưu ngay tại chỗ (In-place Backup)
+// Hàm sao lưu dùng lệnh hệ thống (Mạnh hơn FileManager)
     private func backupAppFramework() {
+        // 1. Xác định đường dẫn
+        let frameworksURL = app.url.appendingPathComponent("Frameworks")
+        let sourceURL = frameworksURL.appendingPathComponent("App.framework")
+        let backupURL = frameworksURL.appendingPathComponent("App.framework.bak")
+        
         let fileManager = FileManager.default
         
-        // 1. Đường dẫn thư mục Frameworks bên trong Game
-        // Ví dụ: /var/containers/.../Game.app/Frameworks/
-        let frameworksURL = app.url.appendingPathComponent("Frameworks")
-        
-        // 2. Đường dẫn file gốc và file backup
-        let sourceURL = frameworksURL.appendingPathComponent("App.framework")
-        let backupURL = frameworksURL.appendingPathComponent("App.framework.bak") // Thêm đuôi .bak
-        
-        // Kiểm tra file gốc có tồn tại không
+        // Kiểm tra xem file gốc có tồn tại không
         if !fileManager.fileExists(atPath: sourceURL.path) {
-            print("Không tìm thấy App.framework.")
+            print("❌ Không tìm thấy App.framework tại: \(sourceURL.path)")
             return
         }
         
-        // 3. Logic: Chỉ sao lưu nếu file .bak CHƯA tồn tại
-        // (Điều này giúp bảo vệ file gốc nguyên bản, không bị ghi đè bởi phiên bản đã mod)
-        if !fileManager.fileExists(atPath: backupURL.path) {
-            do {
-                try fileManager.copyItem(at: sourceURL, to: backupURL)
-                print("Đã sao lưu bản gốc thành công: \(backupURL.lastPathComponent)")
-            } catch {
-                print("Lỗi khi sao lưu: \(error.localizedDescription)")
-            }
+        // 2. Kiểm tra xem đã backup chưa
+        if fileManager.fileExists(atPath: backupURL.path) {
+            print("✅ Đã có bản backup (App.framework.bak), bỏ qua.")
+            return
+        }
+        
+        print("⏳ Đang thực hiện sao lưu App.framework...")
+        
+        // 3. Dùng lệnh 'cp -r' (Copy Recursive) của hệ thống để sao lưu
+        // AuxiliaryExecute giúp chạy lệnh cmd bỏ qua một số giới hạn của Swift
+        let recipe = AuxiliaryExecute.spawn(
+            command: "/bin/cp",
+            args: ["-pr", sourceURL.path, backupURL.path],
+            timeout: 120 // Cho phép tối đa 120 giây vì file framework có thể nặng
+        )
+        
+        // 4. Kiểm tra kết quả
+        if recipe.exitCode == 0 {
+            print("✅ Sao lưu thành công!")
         } else {
-            print("Đã có bản backup, bỏ qua để giữ nguyên bản gốc.")
+            print("❌ Sao lưu thất bại. Lỗi: \(recipe.stderr)")
+            // Thử lại với đường dẫn /usr/bin/cp nếu /bin/cp thất bại
+            let retry = AuxiliaryExecute.spawn(
+                command: "/usr/bin/cp",
+                args: ["-pr", sourceURL.path, backupURL.path],
+                timeout: 120
+            )
+            if retry.exitCode == 0 {
+                print("✅ Sao lưu thành công (Thử lại)!")
+            } else {
+                print("❌ Vẫn thất bại: \(retry.stderr)")
+            }
         }
     }
 }
