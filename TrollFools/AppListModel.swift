@@ -113,14 +113,34 @@ final class AppListModel: ObservableObject {
     }
 
     func performFilter() {
-    // Chỉ lấy app có tên đúng PUBG MOBILE
-    let filtered = _allApplications.filter { $0.name == "PUBG MOBILE" }
+    var filteredApplications = _allApplications
 
-    // Nếu bạn muốn không nhóm theo chữ cái nữa, dùng:
-    activeScopeApps = ["P": filtered]
+    if !filter.searchKeyword.isEmpty {
+        filteredApplications = filteredApplications.filter {
+            $0.name.localizedCaseInsensitiveContains(filter.searchKeyword) || $0.bid.localizedCaseInsensitiveContains(filter.searchKeyword) ||
+                (
+                    $0.latinName.localizedCaseInsensitiveContains(
+                        filter.searchKeyword
+                            .components(separatedBy: .whitespaces).joined()
+                    )
+                )
+        }
+    }
 
-    // Nếu muốn không nhóm luôn, trả thẳng:
-    // activeScopeApps = ["": filtered]
+    if filter.showPatchedOnly {
+        filteredApplications = filteredApplications.filter { $0.isInjected || $0.hasPersistedAssets }
+    }
+
+    switch activeScope {
+    case .all:
+        activeScopeApps = Self.groupedAppList(filteredApplications)
+    case .user:
+        activeScopeApps = Self.groupedAppList(filteredApplications.filter { $0.isUser })
+    case .troll:
+        activeScopeApps = Self.groupedAppList(filteredApplications.filter { $0.isFromTroll })
+    case .system:
+        activeScopeApps = Self.groupedAppList(filteredApplications.filter { $0.isFromApple })
+    }
 }
 
 
@@ -159,6 +179,13 @@ final class AppListModel: ObservableObject {
                     return nil
                 }
 
+                // --- BẮT ĐẦU PHẦN CHỈNH SỬA ---
+                // Chỉ giữ lại app có tên chứa "PUBG MOBILE" (không phân biệt hoa thường)
+                guard localizedName.localizedCaseInsensitiveContains("PUBG MOBILE") else {
+                    return nil
+                }
+                // --- KẾT THÚC PHẦN CHỈNH SỬA ---
+
                 guard !id.hasPrefix("wiki.qaq.") && !id.hasPrefix("com.82flex.") && !id.hasPrefix("ch.xxtou.") else {
                     return nil
                 }
@@ -177,6 +204,7 @@ final class AppListModel: ObservableObject {
                     version: shortVersionString
                 )
 
+                // Đoạn này có thể bỏ qua hoặc giữ lại tùy ý, nhưng vì đã lọc tên ở trên nên thường không cần thiết
                 if app.isUser && app.isFromApple {
                     return nil
                 }
