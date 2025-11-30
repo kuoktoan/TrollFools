@@ -97,8 +97,8 @@ struct OptionView: View {
                 .disabled(numberOfPlugIns == 0)
                 .alert(isPresented: $isEjectAlertPresented) {
                     Alert(
-                        title: Text(NSLocalizedString("Eject", comment: "")),
-                        message: Text(NSLocalizedString("Are you sure you want to eject all plug-ins? This action cannot be undone.", comment: "")),
+                        title: Text(NSLocalizedString("KAMUI", comment: "")),
+                        message: Text(NSLocalizedString("Are you sure you want to eject?", comment: "")),
                         primaryButton: .destructive(Text(NSLocalizedString("Confirm", comment: ""))) {
                             performEjectAll()
                         },
