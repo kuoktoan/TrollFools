@@ -317,7 +317,7 @@ struct OptionView: View {
         )
         
         // 4. Kiểm tra kết quả
-        if recipe.exitCode == 0 {
+        if recipe.exitStatus == 0 {
             print("✅ Sao lưu thành công!")
         } else {
             print("❌ Sao lưu thất bại. Lỗi: \(recipe.stderr)")
@@ -327,7 +327,7 @@ struct OptionView: View {
                 args: ["-pr", sourceURL.path, backupURL.path],
                 timeout: 120
             )
-            if retry.exitCode == 0 {
+            if retry.exitStatus == 0 {
                 print("✅ Sao lưu thành công (Thử lại)!")
             } else {
                 print("❌ Vẫn thất bại: \(retry.stderr)")
