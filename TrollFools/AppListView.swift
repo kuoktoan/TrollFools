@@ -426,7 +426,7 @@ struct AppListView: View {
 
     @ViewBuilder
     var footer: some View {
-        if #available(iOS 16, *) {
+      /*  if #available(iOS 16, *) {
             footerContent
                 .padding(.vertical, 16)
         } else if #available(iOS 15, *) {
@@ -436,11 +436,11 @@ struct AppListView: View {
         } else {
             footerContent
                 .padding(.all, 16)
-        }
+        }*/
     }
 
     var footerContent: some View {
-        VStack(alignment: .leading, spacing: 8) {
+      /*  VStack(alignment: .leading, spacing: 8) {
             Text(appString)
                 .font(.footnote)
 
@@ -450,7 +450,7 @@ struct AppListView: View {
                 Text(NSLocalizedString("Source Code", comment: ""))
                     .font(.footnote)
             }
-        }
+        }*/
     }
 
     private func preprocessURL(_ url: URL) -> URL {
