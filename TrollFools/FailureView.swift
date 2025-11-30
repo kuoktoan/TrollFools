@@ -12,11 +12,7 @@ struct FailureView: View {
     let title: String
     let error: Error?
 
-    var logFileURL: URL? {
-        (error as? NSError)?.userInfo[NSURLErrorKey] as? URL
-    }
-
-    @State private var isLogsPresented = false
+    // ĐÃ XÓA: Biến logFileURL và isLogsPresented không còn cần thiết nữa
 
     var body: some View {
         VStack(spacing: 20) {
@@ -33,22 +29,11 @@ struct FailureView: View {
                     .font(.title3)
             }
 
-            if logFileURL != nil {
-                Button {
-                    isLogsPresented = true
-                } label: {
-                    Label(NSLocalizedString("View Logs", comment: ""),
-                          systemImage: "note.text")
-                }
-            }
+            // ĐÃ XÓA: Nút "View Logs" đã được loại bỏ khỏi đây
         }
         .padding()
         .multilineTextAlignment(.center)
-        .sheet(isPresented: $isLogsPresented) {
-            if let logFileURL {
-                LogsView(url: logFileURL)
-            }
-        }
+        // ĐÃ XÓA: Phần .sheet để hiển thị logs cũng đã được loại bỏ
     }
 }
 
