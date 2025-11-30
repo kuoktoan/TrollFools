@@ -14,6 +14,7 @@ struct OptionView: View {
 
     @State var isImporterPresented = false
     @State var isImporterSelected = false
+    @State var isEjectAlertPresented = false // Thêm dòng này
 
     @State var isWarningPresented = false
     @State var temporaryResult: Result<[URL], any Error>?
@@ -85,16 +86,29 @@ struct OptionView: View {
 
                 Spacer()
 
-                NavigationLink {
-                    EjectListView(app)
+                // --- DÁN CODE MỚI NÀY VÀO ---
+                Button {
+                    // Nếu có plugin thì mới hiện bảng hỏi xóa
+                    if numberOfPlugIns > 0 {
+                        isEjectAlertPresented = true
+                    }
                 } label: {
                     OptionCell(option: .detach, detachCount: numberOfPlugIns)
                 }
-                .accessibilityLabel(
-                    numberOfPlugIns == 0
-                        ? NSLocalizedString("Manage", comment: "")
-                        : String(format: NSLocalizedString("Manage %d Plug-Ins", comment: ""), numberOfPlugIns)
-                )
+                .disabled(numberOfPlugIns == 0) // Mờ đi nếu không có plugin
+                .alert(NSLocalizedString("Eject All", comment: ""), isPresented: $isEjectAlertPresented) {
+                    Button(role: .destructive) {
+                        performEjectAll()
+                    } label: {
+                        Text(NSLocalizedString("Confirm", comment: ""))
+                    }
+                    Button(role: .cancel) { } label: {
+                        Text(NSLocalizedString("Cancel", comment: ""))
+                    }
+                } message: {
+                    Text(NSLocalizedString("Are you sure you want to eject all plug-ins? This action cannot be undone.", comment: ""))
+                }
+                // -----------------------------
 
                 Spacer()
             }
@@ -178,5 +192,36 @@ struct OptionView: View {
         urls += InjectorV3.main.persistedAssetURLs(bid: app.bid)
             .filter { !enabledNames.contains($0.lastPathComponent) }
         numberOfPlugIns = urls.count
+    }
+
+    private func performEjectAll() {
+        // Lấy danh sách tất cả plugin đang có
+        var urls = [URL]()
+        urls += InjectorV3.main.injectedAssetURLsInBundle(app.url)
+        let enabledNames = urls.map { $0.lastPathComponent }
+        urls += InjectorV3.main.persistedAssetURLs(bid: app.bid)
+            .filter { !enabledNames.contains($0.lastPathComponent) }
+
+        guard !urls.isEmpty else { return }
+
+        // Thực hiện Eject
+        DispatchQueue.global(qos: .userInitiated).async {
+            do {
+                let injector = try InjectorV3(app.url)
+                // Cài đặt các thông số nếu cần
+                if injector.appID.isEmpty { injector.appID = app.bid }
+                if injector.teamID.isEmpty { injector.teamID = app.teamID }
+                
+                // Gọi lệnh Eject All
+                try injector.eject(urls, shouldDesist: true)
+                
+                DispatchQueue.main.async {
+                    app.reload()
+                    recalculatePlugInCount()
+                }
+            } catch {
+                print("Error ejecting: \(error)")
+            }
+        }
     }
 }
