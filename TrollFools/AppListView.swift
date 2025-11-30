@@ -481,8 +481,6 @@ struct AppListView: View {
         }
 
         searchController.searchBar.delegate = searchViewModel
-        searchController.searchBar.showsScopeBar = true
-        searchController.searchBar.scopeButtonTitles = Scope.allCases.map { $0.localizedShortName }
         searchController.searchBar.autocapitalizationType = .none
         searchController.searchBar.autocorrectionType = .no
 
