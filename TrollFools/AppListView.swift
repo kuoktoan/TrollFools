@@ -42,7 +42,7 @@ struct AppListView: View {
     }
 
     var appString: String {
-        let appNameString = Bundle.main.infoDictionary?["CFBundleName"] as? String ?? "TrollFools"
+        let appNameString = Bundle.main.infoDictionary?["CFBundleName"] as? String ?? "KAMUI"
         let appVersionString = String(
             format: "v%@ (%@)",
             Bundle.main.infoDictionary?["CFBundleShortVersionString"] as? String ?? "0.0.0",
@@ -259,7 +259,7 @@ struct AppListView: View {
         .listStyle(.insetGrouped)
         .navigationTitle(appList.isSelectorMode ?
             NSLocalizedString("Select Application to Inject", comment: "") :
-            NSLocalizedString("TrollFools", comment: "")
+            NSLocalizedString("KAMUI", comment: "")
         )
         .navigationBarTitleDisplayMode((AppListModel.isLegacyDevice || appList.isSelectorMode) ? .inline : .automatic)
         .toolbar {
