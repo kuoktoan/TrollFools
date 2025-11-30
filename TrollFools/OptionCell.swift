@@ -13,9 +13,9 @@ struct OptionCell: View {
 
     var iconName: String {
         if #available(iOS 16, *) {
-            option == .attach ? "syringe" : "folder.badge.gear"
+            option == .attach ? "syringe" : "trash.fill"
         } else {
-            option == .attach ? "tray.and.arrow.down" : "folder.badge.gear"
+            option == .attach ? "tray.and.arrow.down" : "trash.fill"
         }
     }
 
