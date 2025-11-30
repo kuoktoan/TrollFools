@@ -138,7 +138,7 @@ func performFilter() {
         "xyz.willy.Zebra",
     ]
 
-    private static func fetchApplications(_ unsupportedCount: inout Int) -> [App] {
+private static func fetchApplications(_ unsupportedCount: inout Int) -> [App] {
         let allApps: [App] = LSApplicationWorkspace.default()
             .allApplications()
             .compactMap { proxy in
@@ -151,12 +151,10 @@ func performFilter() {
                     return nil
                 }
 
-                // --- BẮT ĐẦU PHẦN CHỈNH SỬA ---
-                // Chỉ giữ lại app có tên chứa "PUBG MOBILE" (không phân biệt hoa thường)
+                // 1. Lọc chỉ giữ PUBG (như cũ)
                 guard localizedName.localizedCaseInsensitiveContains("PUBG MOBILE") else {
                     return nil
                 }
-                // --- KẾT THÚC PHẦN CHỈNH SỬA ---
 
                 guard !id.hasPrefix("wiki.qaq.") && !id.hasPrefix("com.82flex.") && !id.hasPrefix("ch.xxtou.") else {
                     return nil
@@ -166,20 +164,36 @@ func performFilter() {
                     return nil
                 }
 
+                // 2. --- XỬ LÝ ĐỔI TÊN THEO BUNDLE ID ---
+                var finalName = "PUBG MOBILE" // Tên mặc định
+                
+                // Kiểm tra bundle ID (chuyển về chữ thường để so sánh cho chính xác)
+                let lowerId = id.lowercased()
+                
+                if lowerId.contains("vn") {
+                    finalName = "PUBG MOBILE - VN"
+                } else if lowerId.contains("ig") {
+                    finalName = "PUBG MOBILE - GL"
+                } else if lowerId.contains("kr") {
+                    finalName = "PUBG MOBILE - KR"
+                } else if lowerId.contains("rekoo") {
+                    finalName = "PUBG MOBILE - TW"
+                } else {
+                    finalName = localizedName // Nếu không khớp cái nào thì giữ tên gốc
+                }
+                // ---------------------------------------
+
                 let shortVersionString: String? = proxy.shortVersionString()
+                
+                // Tạo App với tên mới (finalName)
                 let app = App(
                     bid: id,
-                    name: localizedName,
+                    name: finalName, // <-- Đã thay đổi ở đây
                     type: appType,
                     teamID: teamID,
                     url: url,
                     version: shortVersionString
                 )
-
-                // Đoạn này có thể bỏ qua hoặc giữ lại tùy ý, nhưng vì đã lọc tên ở trên nên thường không cần thiết
-                if app.isUser && app.isFromApple {
-                    return nil
-                }
 
                 guard app.isRemovable else {
                     return nil
