@@ -241,7 +241,7 @@ struct AppListView: View {
 
             if #available(iOS 15, *) {
                 if appList.activeScope == .all && shouldShowAdvertisement {
-                    advertisementSection
+                    //advertisementSection
                 }
             }
 
