@@ -112,35 +112,24 @@ final class AppListModel: ObservableObject {
         performFilter()
     }
 
-    func performFilter() {
+func performFilter() {
+        // Lấy danh sách app (đã lọc PUBG từ hàm fetchApplications trước đó)
         var filteredApplications = _allApplications
 
+        // Giữ lại chức năng tìm kiếm (phòng trường hợp bạn muốn tìm gì đó trong tên)
         if !filter.searchKeyword.isEmpty {
             filteredApplications = filteredApplications.filter {
-                $0.name.localizedCaseInsensitiveContains(filter.searchKeyword) || $0.bid.localizedCaseInsensitiveContains(filter.searchKeyword) ||
-                    (
-                        $0.latinName.localizedCaseInsensitiveContains(
-                            filter.searchKeyword
-                                .components(separatedBy: .whitespaces).joined()
-                        )
-                    )
+                $0.name.localizedCaseInsensitiveContains(filter.searchKeyword) ||
+                $0.bid.localizedCaseInsensitiveContains(filter.searchKeyword) ||
+                ($0.latinName.localizedCaseInsensitiveContains(filter.searchKeyword.components(separatedBy: .whitespaces).joined()))
             }
         }
 
-        if filter.showPatchedOnly {
-            filteredApplications = filteredApplications.filter { $0.isInjected || $0.hasPersistedAssets }
-        }
+        // Bỏ qua các dòng lệnh filter.showPatchedOnly nếu không cần thiết
+        // Bỏ qua lệnh switch activeScope (chia tab)
 
-        switch activeScope {
-        case .all:
-            activeScopeApps = Self.groupedAppList(filteredApplications)
-        case .user:
-            activeScopeApps = Self.groupedAppList(filteredApplications.filter { $0.isUser })
-        case .troll:
-            activeScopeApps = Self.groupedAppList(filteredApplications.filter { $0.isFromTroll })
-        case .system:
-            activeScopeApps = Self.groupedAppList(filteredApplications.filter { $0.isFromApple })
-        }
+        // Gán trực tiếp danh sách vào activeScopeApps
+        activeScopeApps = Self.groupedAppList(filteredApplications)
     }
 
     private static let excludedIdentifiers: Set<String> = [
