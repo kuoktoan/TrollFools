@@ -86,29 +86,26 @@ struct OptionView: View {
 
                 Spacer()
 
-                // --- DÁN CODE MỚI NÀY VÀO ---
+// --- DÁN ĐOẠN CODE TƯƠNG THÍCH MỌI PHIÊN BẢN NÀY VÀO ---
                 Button {
-                    // Nếu có plugin thì mới hiện bảng hỏi xóa
                     if numberOfPlugIns > 0 {
                         isEjectAlertPresented = true
                     }
                 } label: {
                     OptionCell(option: .detach, detachCount: numberOfPlugIns)
                 }
-                .disabled(numberOfPlugIns == 0) // Mờ đi nếu không có plugin
-                .alert(NSLocalizedString("Eject All", comment: ""), isPresented: $isEjectAlertPresented) {
-                    Button(role: .destructive) {
-                        performEjectAll()
-                    } label: {
-                        Text(NSLocalizedString("Confirm", comment: ""))
-                    }
-                    Button(role: .cancel) { } label: {
-                        Text(NSLocalizedString("Cancel", comment: ""))
-                    }
-                } message: {
-                    Text(NSLocalizedString("Are you sure you want to eject all plug-ins? This action cannot be undone.", comment: ""))
+                .disabled(numberOfPlugIns == 0)
+                .alert(isPresented: $isEjectAlertPresented) {
+                    Alert(
+                        title: Text(NSLocalizedString("Eject", comment: "")),
+                        message: Text(NSLocalizedString("Are you sure you want to eject all plug-ins? This action cannot be undone.", comment: "")),
+                        primaryButton: .destructive(Text(NSLocalizedString("Confirm", comment: ""))) {
+                            performEjectAll()
+                        },
+                        secondaryButton: .cancel(Text(NSLocalizedString("Cancel", comment: "")))
+                    )
                 }
-                // -----------------------------
+                // -------------------------------------------------------
 
                 Spacer()
             }
