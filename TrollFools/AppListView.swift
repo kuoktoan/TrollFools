@@ -262,7 +262,7 @@ struct AppListView: View {
             NSLocalizedString("KAMUI", comment: "")
         )
         .navigationBarTitleDisplayMode((AppListModel.isLegacyDevice || appList.isSelectorMode) ? .inline : .automatic)
-        .toolbar {
+.toolbar {
             ToolbarItem(placement: .principal) {
                 if appList.isSelectorMode, let selectorURL = appList.selectorURL {
                     VStack {
@@ -271,22 +271,8 @@ struct AppListView: View {
                     }
                 }
             }
-            ToolbarItem(placement: .navigationBarTrailing) {
-                Button {
-                    appList.filter.showPatchedOnly.toggle()
-                } label: {
-                    if #available(iOS 15, *) {
-                        Image(systemName: appList.filter.showPatchedOnly
-                            ? "line.3.horizontal.decrease.circle.fill"
-                            : "line.3.horizontal.decrease.circle")
-                    } else {
-                        Image(systemName: appList.filter.showPatchedOnly
-                            ? "eject.circle.fill"
-                            : "eject.circle")
-                    }
-                }
-                .accessibilityLabel(NSLocalizedString("Show Patched Only", comment: ""))
-            }
+            
+            // --- ĐÃ XÓA PHẦN ToolbarItem(placement: .navigationBarTrailing) Ở ĐÂY ---
         }
     }
 
