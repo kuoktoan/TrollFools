@@ -10,18 +10,51 @@ import OrderedCollections
 import SwiftUI
 
 final class AppListModel: ObservableObject {
+    enum Scope: Int, CaseIterable {
+        case all
+        case user
+        case troll
+        case system
+
+        var localizedShortName: String {
+            switch self {
+            case .all:
+                NSLocalizedString("All", comment: "")
+            case .user:
+                NSLocalizedString("User", comment: "")
+            case .troll:
+                NSLocalizedString("TrollStore", comment: "")
+            case .system:
+                NSLocalizedString("System", comment: "")
+            }
+        }
+
+        var localizedName: String {
+            switch self {
+            case .all:
+                NSLocalizedString("All Applications", comment: "")
+            case .user:
+                NSLocalizedString("User Applications", comment: "")
+            case .troll:
+                NSLocalizedString("TrollStore Applications", comment: "")
+            case .system:
+                NSLocalizedString("Injectable System Applications", comment: "")
+            }
+        }
+    }
 
     static let isLegacyDevice: Bool = { UIScreen.main.fixedCoordinateSpace.bounds.height <= 736.0 }()
     static let hasTrollStore: Bool = { LSApplicationProxy(forIdentifier: "com.opa334.TrollStore") != nil }()
-    
     private var _allApplications: [App] = []
 
     let selectorURL: URL?
     var isSelectorMode: Bool { selectorURL != nil }
 
+    @Published var filter = FilterOptions()
+    @Published var activeScope: Scope = .all
     @Published var activeScopeApps: OrderedDictionary<String, [App]> = [:]
+
     @Published var unsupportedCount: Int = 0
-    @Published var isRebuildNeeded: Bool = false
 
     lazy var isFilzaInstalled: Bool = {
         if let filzaURL {
@@ -32,6 +65,8 @@ final class AppListModel: ObservableObject {
     }()
     private let filzaURL = URL(string: "filza://view")
 
+    @Published var isRebuildNeeded: Bool = false
+
     private let applicationChanged = PassthroughSubject<Void, Never>()
     private var cancellables = Set<AnyCancellable>()
 
@@ -39,25 +74,30 @@ final class AppListModel: ObservableObject {
         self.selectorURL = selectorURL
         reload()
 
+        Publishers.CombineLatest(
+            $filter,
+            $activeScope
+        )
+        .throttle(for: 0.5, scheduler: DispatchQueue.main, latest: true)
+        .sink { [weak self] _ in
+            self?.performFilter()
+        }
+        .store(in: &cancellables)
+
         applicationChanged
             .throttle(for: 0.5, scheduler: DispatchQueue.main, latest: true)
-            .sink { [weak self] _ in self?.reload() }
+            .sink { [weak self] _ in
+                self?.reload()
+            }
             .store(in: &cancellables)
 
         let darwinCenter = CFNotificationCenterGetDarwinNotifyCenter()
-        CFNotificationCenterAddObserver(
-            darwinCenter,
-            Unmanaged.passRetained(self).toOpaque(),
-            { _, observer, _, _, _ in
-                guard let observer = Unmanaged<AppListModel>
-                    .fromOpaque(observer!)
-                    .takeUnretainedValue() as AppListModel? else { return }
-                observer.applicationChanged.send()
-            },
-            "com.apple.LaunchServices.ApplicationsChanged" as CFString,
-            nil,
-            .coalesce
-        )
+        CFNotificationCenterAddObserver(darwinCenter, Unmanaged.passRetained(self).toOpaque(), { _, observer, _, _, _ in
+            guard let observer = Unmanaged<AppListModel>.fromOpaque(observer!).takeUnretainedValue() as AppListModel? else {
+                return
+            }
+            observer.applicationChanged.send()
+        }, "com.apple.LaunchServices.ApplicationsChanged" as CFString, nil, .coalesce)
     }
 
     deinit {
@@ -72,12 +112,32 @@ final class AppListModel: ObservableObject {
         performFilter()
     }
 
-    /// CHỈ HIỂN THỊ PUBG MOBILE
     func performFilter() {
-        let filtered = _allApplications.filter { $0.name == "PUBG MOBILE" }
+    // Chỉ lấy app có tên đúng PUBG MOBILE
+    let filtered = _allApplications.filter { $0.name == "PUBG MOBILE" }
 
-        // Không group luôn, để key rỗng ""
-        activeScopeApps = ["": filtered]
+    // Nếu bạn muốn không nhóm theo chữ cái nữa, dùng:
+    activeScopeApps = ["P": filtered]
+
+    // Nếu muốn không nhóm luôn, trả thẳng:
+    // activeScopeApps = ["": filtered]
+}
+
+
+        if filter.showPatchedOnly {
+            filteredApplications = filteredApplications.filter { $0.isInjected || $0.hasPersistedAssets }
+        }
+
+        switch activeScope {
+        case .all:
+            activeScopeApps = Self.groupedAppList(filteredApplications)
+        case .user:
+            activeScopeApps = Self.groupedAppList(filteredApplications.filter { $0.isUser })
+        case .troll:
+            activeScopeApps = Self.groupedAppList(filteredApplications.filter { $0.isFromTroll })
+        case .system:
+            activeScopeApps = Self.groupedAppList(filteredApplications.filter { $0.isFromApple })
+        }
     }
 
     private static let excludedIdentifiers: Set<String> = [
@@ -95,15 +155,17 @@ final class AppListModel: ObservableObject {
                       let teamID = proxy.teamID(),
                       let appType = proxy.applicationType(),
                       let localizedName = proxy.localizedName()
-                else { return nil }
+                else {
+                    return nil
+                }
 
-                // loại package nội bộ
-                guard !id.hasPrefix("wiki.qaq."),
-                      !id.hasPrefix("com.82flex."),
-                      !id.hasPrefix("ch.xxtou.") else { return nil }
+                guard !id.hasPrefix("wiki.qaq.") && !id.hasPrefix("com.82flex.") && !id.hasPrefix("ch.xxtou.") else {
+                    return nil
+                }
 
-                // loại Dopamine / Sileo…
-                guard !excludedIdentifiers.contains(id) else { return nil }
+                guard !excludedIdentifiers.contains(id) else {
+                    return nil
+                }
 
                 let shortVersionString: String? = proxy.shortVersionString()
                 let app = App(
@@ -115,8 +177,13 @@ final class AppListModel: ObservableObject {
                     version: shortVersionString
                 )
 
-                if app.isUser && app.isFromApple { return nil }
-                guard app.isRemovable else { return nil }
+                if app.isUser && app.isFromApple {
+                    return nil
+                }
+
+                guard app.isRemovable else {
+                    return nil
+                }
 
                 return app
             }
@@ -126,32 +193,77 @@ final class AppListModel: ObservableObject {
             .sorted { $0.name.localizedCaseInsensitiveCompare($1.name) == .orderedAscending }
 
         unsupportedCount = allApps.count - filteredApps.count
+
         return filteredApps
     }
 }
 
-
-// MARK: Utilities
-
 extension AppListModel {
     func openInFilza(_ url: URL) {
-        guard let filzaURL else { return }
+        guard let filzaURL else {
+            return
+        }
 
         let fileURL: URL
         if #available(iOS 16, *) {
             fileURL = filzaURL.appending(path: url.path)
         } else {
-            fileURL = URL(string: filzaURL.absoluteString +
-                (url.path.addingPercentEncoding(withAllowedCharacters: .urlPathAllowed) ?? "")
-            )!
+            fileURL = URL(string: filzaURL.absoluteString + (url.path.addingPercentEncoding(withAllowedCharacters: .urlPathAllowed) ?? ""))!
         }
 
         UIApplication.shared.open(fileURL)
     }
 
     func rebuildIconCache() {
+        // Sadly, we can't call `trollstorehelper` directly because only TrollStore can launch it without error.
         DispatchQueue.global(qos: .userInitiated).async {
             LSApplicationWorkspace.default().openApplication(withBundleID: "com.opa334.TrollStore")
         }
+    }
+}
+
+extension AppListModel {
+    static let allowedCharacters = "ABCDEFGHIJKLMNOPQRSTUVWXYZ#"
+    private static let allowedCharacterSet = CharacterSet(charactersIn: allowedCharacters)
+
+    private static func groupedAppList(_ apps: [App]) -> OrderedDictionary<String, [App]> {
+        var groupedApps = OrderedDictionary<String, [App]>()
+
+        for app in apps {
+            var key = app.name
+                .trimmingCharacters(in: .controlCharacters)
+                .trimmingCharacters(in: .whitespacesAndNewlines)
+                .applyingTransform(.stripCombiningMarks, reverse: false)?
+                .applyingTransform(.toLatin, reverse: false)?
+                .applyingTransform(.stripDiacritics, reverse: false)?
+                .prefix(1).uppercased() ?? "#"
+
+            if let scalar = UnicodeScalar(key) {
+                if !allowedCharacterSet.contains(scalar) {
+                    key = "#"
+                }
+            } else {
+                key = "#"
+            }
+
+            if groupedApps[key] == nil {
+                groupedApps[key] = []
+            }
+
+            groupedApps[key]?.append(app)
+        }
+
+        groupedApps.sort { app1, app2 in
+            if let c1 = app1.key.first,
+               let c2 = app2.key.first,
+               let idx1 = allowedCharacters.firstIndex(of: c1),
+               let idx2 = allowedCharacters.firstIndex(of: c2)
+            {
+                return idx1 < idx2
+            }
+            return app1.key < app2.key
+        }
+
+        return groupedApps
     }
 }
