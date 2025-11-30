@@ -171,13 +171,13 @@ private static func fetchApplications(_ unsupportedCount: inout Int) -> [App] {
                 let lowerId = id.lowercased()
                 
                 if lowerId.contains("vn") {
-                    finalName = "PUBG MOBILE - VN"
+                    finalName = "PUBG MOBILE (VN)"
                 } else if lowerId.contains("ig") {
-                    finalName = "PUBG MOBILE - GL"
+                    finalName = "PUBG MOBILE (GL)"
                 } else if lowerId.contains("kr") {
-                    finalName = "PUBG MOBILE - KR"
+                    finalName = "PUBG MOBILE (KR)"
                 } else if lowerId.contains("rekoo") {
-                    finalName = "PUBG MOBILE - TW"
+                    finalName = "PUBG MOBILE (TW)"
                 } else {
                     finalName = localizedName // Nếu không khớp cái nào thì giữ tên gốc
                 }
