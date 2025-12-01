@@ -243,7 +243,9 @@ struct AppListView: View {
             VStack(spacing: 20) {
                 // TIÊU ĐỀ LỚN
                 HStack {
-                    Text("KAMUI")
+                    // ĐÃ SỬA: Dùng NSLocalizedString để App tự dịch
+                    // (Bạn có thể đổi "Applications" thành "Game List" nếu muốn)
+                    Text(NSLocalizedString("Game List", comment: ""))
                         .font(.system(size: 28, weight: .bold, design: .rounded))
                     Spacer()
                 }
