@@ -66,7 +66,7 @@ struct OptionCell: View {
     }
     
     var titleText: String {
-        return isInject ? "BẮT ĐẦU MOD (INJECT)" : "XÓA TẤT CẢ (EJECT)"
+        return isInject ? "Inject" : "Eject"
     }
     
     var gradientColors: [Color] {
