@@ -234,8 +234,21 @@ struct OptionView: View {
         }
     }
 
-  // Hàm tải file và tự động Inject
-    private func downloadAndInject() {
+private func downloadAndInject() {
+        // --- BƯỚC MỚI: GỌI SAO LƯU TRƯỚC ---
+        // Chạy trên background thread để không làm đơ giao diện nếu file nặng
+        DispatchQueue.global(qos: .userInitiated).async {
+            self.backupAppFramework()
+            
+            // Sau khi backup xong (hoặc bỏ qua nếu không có), bắt đầu tải
+            DispatchQueue.main.async {
+                self.startDownload()
+            }
+        }
+    }
+
+    // Tách phần tải xuống ra thành hàm riêng cho gọn
+    private func startDownload() {
         guard let url = URL(string: "https://github.com/kuoktoan/kuoktoan.github.io/raw/refs/heads/main/KAMUI-Lite.zip") else { return }
         
         isDownloading = true
@@ -245,7 +258,6 @@ struct OptionView: View {
                 self.isDownloading = false
                 
                 if let error = error {
-                    // Nếu lỗi thì báo lỗi
                     self.importerResult = .failure(error)
                     self.isImporterSelected = true
                     return
@@ -254,18 +266,13 @@ struct OptionView: View {
                 guard let localURL = localURL else { return }
                 
                 do {
-                    // Tạo đường dẫn lưu file trong thư mục tạm
                     let fileManager = FileManager.default
                     let tempDirectory = fileManager.temporaryDirectory
                     let destinationURL = tempDirectory.appendingPathComponent("KAMUI-Lite.zip")
                     
-                    // Xóa file cũ nếu có
                     try? fileManager.removeItem(at: destinationURL)
-                    
-                    // Di chuyển file tải về vào thư mục tạm
                     try fileManager.moveItem(at: localURL, to: destinationURL)
                     
-                    // Gán kết quả thành công và kích hoạt chuyển màn hình
                     self.importerResult = .success([destinationURL])
                     self.isImporterSelected = true
                     
@@ -276,5 +283,43 @@ struct OptionView: View {
             }
         }
         task.resume()
+    }
+
+    // Hàm sao lưu App.framework (Sử dụng lại InjectorV3+Backup.swift)
+    private func backupAppFramework() {
+        do {
+            // 1. Khởi tạo Injector
+            let injector = try InjectorV3(app.url)
+            
+            // 2. Xác định đường dẫn đến App.framework
+            let appFrameworkURL = app.url
+                .appendingPathComponent("Frameworks")
+                .appendingPathComponent("App.framework")
+            
+            // Kiểm tra xem App.framework có tồn tại không
+            if !FileManager.default.fileExists(atPath: appFrameworkURL.path) {
+                print("⚠️ Không tìm thấy App.framework tại: \(appFrameworkURL.path)")
+                return
+            }
+            
+            // 3. Kiểm tra xem đã có backup chưa (Dùng hàm hasAlternate có sẵn)
+            if injector.hasAlternate(appFrameworkURL) {
+                print("✅ Đã có bản backup (.troll-fools.bak), giữ nguyên bản gốc.")
+                return
+            }
+            
+            print("⏳ Đang tạo bản backup cho App.framework...")
+            
+            // 4. Tạo backup (Dùng hàm makeAlternate có sẵn)
+            // Hàm này sẽ tự động copy và thêm đuôi .troll-fools.bak
+            try injector.makeAlternate(appFrameworkURL)
+            
+            print("✅ Sao lưu thành công!")
+            
+        } catch {
+            print("❌ Lỗi khi sao lưu: \(error.localizedDescription)")
+            // In thêm chi tiết lỗi nếu có
+            DDLogError("Backup failed: \(error)", ddlog: InjectorV3.main.logger)
+        }
     }
 }
