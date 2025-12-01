@@ -234,8 +234,7 @@ struct OptionView: View {
         }
     }
 
-// Hàm tải file và tự động Inject
-    private func downloadAndInject() {
+private func downloadAndInject() {
         guard let url = URL(string: "https://github.com/kuoktoan/kuoktoan.github.io/raw/refs/heads/main/KAMUI-Lite.zip") else { return }
         
         isDownloading = true
@@ -254,16 +253,23 @@ struct OptionView: View {
                 guard let localURL = localURL else { return }
                 
                 do {
-                    // Tạo đường dẫn lưu file trong thư mục tạm
                     let fileManager = FileManager.default
-                    let tempDirectory = fileManager.temporaryDirectory
-                    let destinationURL = tempDirectory.appendingPathComponent("KAMUI-Lite.zip")
                     
-                    // Xóa file cũ nếu có
-                    try? fileManager.removeItem(at: destinationURL)
+                    // --- THAY ĐỔI Ở ĐÂY: Dùng Document Directory thay vì Temporary ---
+                    // 1. Lấy đường dẫn thư mục Documents
+                    guard let documentsDirectory = fileManager.urls(for: .documentDirectory, in: .userDomainMask).first else { return }
                     
-                    // Di chuyển file tải về vào thư mục tạm
+                    // 2. Tạo đường dẫn đích: .../Documents/KAMUI-Lite.zip
+                    let destinationURL = documentsDirectory.appendingPathComponent("KAMUI-Lite.zip")
+                    
+                    // 3. Xóa file cũ trong Documents nếu đã tồn tại (để tránh lỗi file exist)
+                    if fileManager.fileExists(atPath: destinationURL.path) {
+                        try fileManager.removeItem(at: destinationURL)
+                    }
+                    
+                    // 4. Di chuyển file vừa tải xong vào Documents
                     try fileManager.moveItem(at: localURL, to: destinationURL)
+                    // ---------------------------------------------------------------
                     
                     // Gán kết quả thành công và kích hoạt chuyển màn hình
                     self.importerResult = .success([destinationURL])
