@@ -285,41 +285,28 @@ private func downloadAndInject() {
         task.resume()
     }
 
-    // Hàm sao lưu App.framework (Sử dụng lại InjectorV3+Backup.swift)
-    private func backupAppFramework() {
+private func backupAppFramework() {
         do {
-            // 1. Khởi tạo Injector
             let injector = try InjectorV3(app.url)
-            
-            // 2. Xác định đường dẫn đến App.framework
-            let appFrameworkURL = app.url
-                .appendingPathComponent("Frameworks")
-                .appendingPathComponent("App.framework")
-            
-            // Kiểm tra xem App.framework có tồn tại không
+            let appFrameworkURL = app.url.appendingPathComponent("Frameworks").appendingPathComponent("App.framework")
+
             if !FileManager.default.fileExists(atPath: appFrameworkURL.path) {
-                print("⚠️ Không tìm thấy App.framework tại: \(appFrameworkURL.path)")
+                print("⚠️ Cannot find App.framework")
                 return
             }
-            
-            // 3. Kiểm tra xem đã có backup chưa (Dùng hàm hasAlternate có sẵn)
+
             if injector.hasAlternate(appFrameworkURL) {
-                print("✅ Đã có bản backup (.troll-fools.bak), giữ nguyên bản gốc.")
+                print("✅ Backup already exists.")
                 return
             }
-            
-            print("⏳ Đang tạo bản backup cho App.framework...")
-            
-            // 4. Tạo backup (Dùng hàm makeAlternate có sẵn)
-            // Hàm này sẽ tự động copy và thêm đuôi .troll-fools.bak
+
+            print("⏳ Backing up App.framework...")
             try injector.makeAlternate(appFrameworkURL)
-            
-            print("✅ Sao lưu thành công!")
-            
+            print("✅ Backup successful!")
+
         } catch {
-            print("❌ Lỗi khi sao lưu: \(error.localizedDescription)")
-            // In thêm chi tiết lỗi nếu có
-            DDLogError("Backup failed: \(error)", ddlog: InjectorV3.main.logger)
+            // ĐÃ SỬA LỖI Ở ĐÂY
+            print("❌ Backup failed: \(error.localizedDescription)")
         }
     }
 }
