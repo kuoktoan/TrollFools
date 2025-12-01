@@ -33,81 +33,67 @@ struct AppListCell: View {
         return attributedString
     }
 
-    var body: some View {
-        HStack(spacing: 12) {
+var body: some View {
+        HStack(spacing: 16) {
+            // 1. ICON ỨNG DỤNG (Bo tròn đẹp hơn, thêm viền nhẹ)
             if #available(iOS 15, *) {
                 Image(uiImage: app.alternateIcon ?? app.icon ?? UIImage())
                     .resizable()
-                    .frame(width: 32, height: 32)
+                    .aspectRatio(contentMode: .fit)
+                    .frame(width: 50, height: 50) // Tăng kích thước icon
+                    .cornerRadius(12)
+                    .overlay(
+                        RoundedRectangle(cornerRadius: 12)
+                            .stroke(Color.gray.opacity(0.2), lineWidth: 1)
+                    )
+                    .shadow(color: .black.opacity(0.1), radius: 4, x: 0, y: 2)
             } else {
                 Image(uiImage: app.alternateIcon ?? app.icon ?? UIImage())
                     .resizable()
-                    .frame(width: 32, height: 32)
-                    .clipShape(RoundedRectangle(cornerRadius: 8))
+                    .frame(width: 50, height: 50)
+                    .cornerRadius(12)
             }
 
-            VStack(alignment: .leading, spacing: 2) {
-                HStack(spacing: 4) {
-                    if #available(iOS 15, *) {
-                        Text(highlightedName)
-                            .font(.headline)
-                            .lineLimit(1)
-                    } else {
-                        Text(app.name)
-                            .font(.headline)
-                            .lineLimit(1)
-                    }
+            // 2. TÊN VÀ TRẠNG THÁI
+            VStack(alignment: .leading, spacing: 4) {
+                Text(app.name)
+                    .font(.system(size: 17, weight: .semibold, design: .rounded)) // Font chữ tròn trịa hiện đại
+                    .foregroundColor(.primary)
+                    .lineLimit(1)
 
-                    if app.isInjected || app.hasPersistedAssets {
-                        Image(systemName: app.isInjected ? "bandage" : "exclamationmark.triangle")
-                            .font(.subheadline)
-                            .foregroundColor(.orange)
-                            .accessibilityLabel(app.isInjected ? NSLocalizedString("Patched", comment: "") : NSLocalizedString("Includes Disabled PlugIns", comment: ""))
-                            .transition(.opacity)
+                // Chỉ hiện trạng thái nếu đã Inject
+                if app.isInjected || app.hasPersistedAssets {
+                    HStack(spacing: 4) {
+                        Image(systemName: "checkmark.seal.fill")
+                            .foregroundColor(.green)
+                            .font(.caption)
+                        Text(app.isInjected ? "Đã Mod" : "Có file chờ")
+                            .font(.caption)
+                            .foregroundColor(.secondary)
                     }
+                    .padding(.horizontal, 8)
+                    .padding(.vertical, 2)
+                    .background(Color.green.opacity(0.1))
+                    .cornerRadius(6)
+                } else {
+                    Text(app.version ?? "Unknown Version")
+                        .font(.caption)
+                        .foregroundColor(.secondary)
                 }
-                .animation(.easeOut, value: combines(
-                    app.isInjected,
-                    app.hasPersistedAssets
-                ))
-
-                // --- ĐÃ XÓA ĐOẠN CODE HIỂN THỊ ID Ở ĐÂY ---
             }
 
             Spacer()
 
-            if let version = app.version {
-                if app.isUser && app.isDetached {
-                    HStack(spacing: 4) {
-                        Image(systemName: "lock")
-                            .font(.subheadline)
-                            .foregroundColor(.red)
-                            .accessibilityLabel(NSLocalizedString("Pinned Version", comment: ""))
-
-                        Text(version)
-                            .font(.subheadline)
-                            .foregroundColor(.secondary)
-                            .lineLimit(1)
-                    }
-                } else {
-                    Text(version)
-                        .font(.subheadline)
-                        .foregroundColor(.secondary)
-                        .lineLimit(1)
-                }
-            } else if app.isAdvertisement {
-                Image("badge-ad")
-                    .foregroundColor(.secondary)
-                    .scaleEffect(1.2)
-                    .accessibilityLabel(NSLocalizedString("This is an advertisement.", comment: ""))
-            }
+            // 3. MŨI TÊN CHỈ DẪN
+            Image(systemName: "chevron.right")
+                .font(.system(size: 14, weight: .bold))
+                .foregroundColor(.gray.opacity(0.5))
         }
-        .contextMenu {
-            if !appList.isSelectorMode && !app.isAdvertisement {
-                cellContextMenuWrapper
-            }
-        }
-        .background(cellBackground)
+        .padding(12) // Khoảng cách nội dung bên trong thẻ
+        .background(Color(UIColor.secondarySystemGroupedBackground)) // Màu nền thẻ
+        .cornerRadius(16) // Bo góc thẻ
+        .shadow(color: Color.black.opacity(0.05), radius: 8, x: 0, y: 4) // Đổ bóng nhẹ
+        .padding(.vertical, 4) // Khoảng cách giữa các thẻ
     }
 
     @ViewBuilder
