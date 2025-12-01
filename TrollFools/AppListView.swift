@@ -238,42 +238,39 @@ struct AppListView: View {
     }
 
     var listView: some View {
-        List {
-            topSection
-
-            if #available(iOS 15, *) {
-                if appList.activeScope == .all && shouldShowAdvertisement {
-                    //advertisementSection
+        // Dùng ScrollView thay vì List để tùy biến đẹp hơn
+        ScrollView {
+            VStack(spacing: 20) {
+                // TIÊU ĐỀ LỚN
+                HStack {
+                    Text("Danh Sách Game")
+                        .font(.system(size: 28, weight: .bold, design: .rounded))
+                    Spacer()
                 }
-            }
+                .padding(.horizontal)
+                .padding(.top, 10)
 
-            appSections
-        }
-        .animation(.easeOut, value: combines(
-            appList.isRebuildNeeded,
-            appList.activeScope,
-            appList.filter,
-            appList.unsupportedCount,
-            shouldShowAdvertisement
-        ))
-        .listStyle(.insetGrouped)
-        .navigationTitle(appList.isSelectorMode ?
-            NSLocalizedString("Select Application to Inject", comment: "") :
-            NSLocalizedString("KAMUI", comment: "")
-        )
-        .navigationBarTitleDisplayMode((AppListModel.isLegacyDevice || appList.isSelectorMode) ? .inline : .automatic)
-.toolbar {
-            ToolbarItem(placement: .principal) {
-                if appList.isSelectorMode, let selectorURL = appList.selectorURL {
-                    VStack {
-                        Text(selectorURL.lastPathComponent).font(.headline)
-                        Text(NSLocalizedString("Select Application to Inject", comment: "")).font(.caption)
+                // DANH SÁCH APP
+                LazyVStack(spacing: 0) {
+                    ForEach(appList.activeScopeApps.keys.elements, id: \.self) { key in
+                        ForEach(appList.activeScopeApps[key] ?? [], id: \.bid) { app in
+                            NavigationLink {
+                                if appList.isSelectorMode, let selectorURL = appList.selectorURL {
+                                    InjectView(app, urlList: [selectorURL])
+                                } else {
+                                    OptionView(app)
+                                }
+                            } label: {
+                                AppListCell(app: app)
+                            }
+                            .buttonStyle(PlainButtonStyle()) // Bỏ hiệu ứng chọn mặc định
+                        }
                     }
                 }
+                .padding(.horizontal) // Thụt lề 2 bên cho đẹp
             }
-            
-            // --- ĐÃ XÓA PHẦN ToolbarItem(placement: .navigationBarTrailing) Ở ĐÂY ---
         }
+        .background(Color(UIColor.systemGroupedBackground)) // Màu nền xám nhẹ toàn màn hình
     }
 
     var topSection: some View {
