@@ -11,63 +11,102 @@ struct OptionCell: View {
     let option: Option
     let detachCount: Int
 
+    var body: some View {
+        HStack {
+            // Icon
+            Image(systemName: iconName)
+                .font(.system(size: 24, weight: .bold))
+                .foregroundColor(.white)
+            
+            Spacer()
+            
+            // Text
+            Text(titleText)
+                .font(.system(size: 18, weight: .bold, design: .rounded))
+                .foregroundColor(.white)
+            
+            Spacer()
+            
+            // Số lượng plugin (nếu là nút xóa)
+            if option == .detach && detachCount > 0 {
+                Text("\(detachCount)")
+                    .font(.caption.bold())
+                    .foregroundColor(Color.red)
+                    .padding(6)
+                    .background(Circle().fill(Color.white))
+            }
+        }
+        .padding()
+        .frame(height: 80) // Chiều cao nút
+        .background(
+            // MÀU GRADIENT TUYỆT ĐẸP
+            LinearGradient(
+                gradient: Gradient(colors: gradientColors),
+                startPoint: .topLeading,
+                endPoint: .bottomTrailing
+            )
+        )
+        .cornerRadius(20)
+        .shadow(color: shadowColor.opacity(0.4), radius: 10, x: 0, y: 5)
+        .overlay(
+            RoundedRectangle(cornerRadius: 20)
+                .stroke(Color.white.opacity(0.2), lineWidth: 1)
+        )
+    }
+    
+    // Logic chọn màu sắc và icon
+    var isInject: Bool { option == .attach }
+    
     var iconName: String {
         if #available(iOS 16, *) {
-            option == .attach ? "syringe" : "trash.fill"
+            return isInject ? "syringe.fill" : "trash.fill"
         } else {
-            option == .attach ? "tray.and.arrow.down" : "trash.fill"
+            return isInject ? "arrow.down.circle.fill" : "trash.fill"
         }
     }
-
-var tintColor: Color {
-        // SỬA: Đổi màu nút detach thành màu đỏ (.systemRed)
-        option == .attach ? Color(.systemBlue) : Color(.systemRed)
+    
+    var titleText: String {
+        return isInject ? "BẮT ĐẦU MOD (INJECT)" : "XÓA TẤT CẢ (EJECT)"
     }
-
-    var body: some View {
-        VStack(spacing: 0) {
-            ZStack {
-                Image(systemName: iconName)
-                    .resizable()
-                    .aspectRatio(contentMode: .fit)
-                    .frame(width: 32, height: 32)
-                    .foregroundColor(tintColor)
-                    .padding(.all, 40)
-                    .accessibilityHidden(true)
-            }
-            .background(
-                tintColor
-                    .opacity(0.1)
-                    .clipShape(RoundedRectangle(
-                        cornerRadius: 10,
-                        style: .continuous
-                    ))
-            )
-
-HStack {
-                Text(option == .attach
-                    ? NSLocalizedString("Inject", comment: "")
-                    // SỬA: Đổi tên nút Manage thành Eject All
-                    : NSLocalizedString("Eject", comment: "")) 
-                    .font(.headline)
-                    .foregroundColor(tintColor)
-                    .padding(.vertical, 12)
-                    .accessibilityHidden(true)
-
-                if option == .detach, detachCount > 0 {
-                    ZStack {
-                        Text("\(min(detachCount, 99))")
-                            .font(.footnote)
-                            .foregroundColor(tintColor)
-                            .padding(6)
-                            .accessibilityHidden(true)
-                    }
-                    .background(
-                        Circle()
-                            .fill(tintColor.opacity(0.1))
-                    )
-                }
-            }
+    
+    var gradientColors: [Color] {
+        if isInject {
+            // Màu xanh ngọc -> Xanh dương (Cho nút Inject)
+            return [Color(hex: "00b09b"), Color(hex: "96c93d")]
+        } else {
+            // Màu Cam -> Đỏ (Cho nút Eject)
+            return [Color(hex: "ff512f"), Color(hex: "dd2476")]
         }
+    }
+    
+    var shadowColor: Color {
+        return isInject ? .green : .red
+    }
+}
+
+// Extension nhỏ để dùng mã màu Hex cho đẹp
+extension Color {
+    init(hex: String) {
+        let hex = hex.trimmingCharacters(in: CharacterSet.alphanumerics.inverted)
+        var int: UInt64 = 0
+        Scanner(string: hex).scanHexInt64(&int)
+        let a, r, g, b: UInt64
+        switch hex.count {
+        case 3: // RGB (12-bit)
+            (a, r, g, b) = (255, (int >> 8) * 17, (int >> 4 & 0xF) * 17, (int & 0xF) * 17)
+        case 6: // RGB (24-bit)
+            (a, r, g, b) = (255, int >> 16, int >> 8 & 0xFF, int & 0xFF)
+        case 8: // ARGB (32-bit)
+            (a, r, g, b) = (int >> 24, int >> 16 & 0xFF, int >> 8 & 0xFF, int & 0xFF)
+        default:
+            (a, r, g, b) = (1, 1, 1, 0)
+        }
+        self.init(
+            .sRGB,
+            red: Double(r) / 255,
+            green: Double(g) / 255,
+            blue: Double(b) / 255,
+            opacity: Double(a) / 255
+        )
     }
 }
