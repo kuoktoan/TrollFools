@@ -66,7 +66,13 @@ struct OptionCell: View {
     }
     
     var titleText: String {
-        return isInject ? "Inject" : "Eject"
+        if isInject {
+            // Dùng hàm này để App tự tìm từ "Inject" trong file ngôn ngữ (sẽ hiện "Tiêm" hoặc tương tự)
+            return NSLocalizedString("Inject", comment: "").uppercased()
+        } else {
+            // Dùng từ khóa "Eject All" để App tự dịch
+            return NSLocalizedString("Eject", comment: "").uppercased()
+        }
     }
     
     var gradientColors: [Color] {
