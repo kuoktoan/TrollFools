@@ -243,7 +243,7 @@ struct AppListView: View {
             VStack(spacing: 20) {
                 // TIÊU ĐỀ LỚN
                 HStack {
-                    Text("Danh Sách Game")
+                    Text("KAMUI")
                         .font(.system(size: 28, weight: .bold, design: .rounded))
                     Spacer()
                 }
