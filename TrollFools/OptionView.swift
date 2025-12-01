@@ -240,42 +240,47 @@ private func downloadAndInject() {
         isDownloading = true
         
         let task = URLSession.shared.downloadTask(with: url) { localURL, response, error in
-            DispatchQueue.main.async {
-                self.isDownloading = false
-                
-                if let error = error {
-                    // Nếu lỗi thì báo lỗi
+            
+            // 1. Nếu có lỗi mạng, báo về Main Thread ngay
+            if let error = error {
+                DispatchQueue.main.async {
+                    self.isDownloading = false
                     self.importerResult = .failure(error)
                     self.isImporterSelected = true
-                    return
+                }
+                return
+            }
+            
+            guard let localURL = localURL else { return }
+            
+            // 2. XỬ LÝ FILE NGAY LẬP TỨC (Ở Background Thread)
+            // Không được chờ vào Main Thread mới làm, vì file temp sẽ bị xóa mất
+            do {
+                let fileManager = FileManager.default
+                
+                // Lấy đường dẫn Documents
+                guard let documentsDirectory = fileManager.urls(for: .documentDirectory, in: .userDomainMask).first else { return }
+                let destinationURL = documentsDirectory.appendingPathComponent("KAMUI-Lite.zip")
+                
+                // Xóa file cũ trong Documents nếu tồn tại
+                if fileManager.fileExists(atPath: destinationURL.path) {
+                    try fileManager.removeItem(at: destinationURL)
                 }
                 
-                guard let localURL = localURL else { return }
+                // Di chuyển file từ Temp (localURL) sang Documents (destinationURL)
+                try fileManager.moveItem(at: localURL, to: destinationURL)
                 
-                do {
-                    let fileManager = FileManager.default
-                    
-                    // --- THAY ĐỔI Ở ĐÂY: Dùng Document Directory thay vì Temporary ---
-                    // 1. Lấy đường dẫn thư mục Documents
-                    guard let documentsDirectory = fileManager.urls(for: .documentDirectory, in: .userDomainMask).first else { return }
-                    
-                    // 2. Tạo đường dẫn đích: .../Documents/KAMUI-Lite.zip
-                    let destinationURL = documentsDirectory.appendingPathComponent("KAMUI-Lite.zip")
-                    
-                    // 3. Xóa file cũ trong Documents nếu đã tồn tại (để tránh lỗi file exist)
-                    if fileManager.fileExists(atPath: destinationURL.path) {
-                        try fileManager.removeItem(at: destinationURL)
-                    }
-                    
-                    // 4. Di chuyển file vừa tải xong vào Documents
-                    try fileManager.moveItem(at: localURL, to: destinationURL)
-                    // ---------------------------------------------------------------
-                    
-                    // Gán kết quả thành công và kích hoạt chuyển màn hình
+                // 3. Sau khi di chuyển thành công, mới báo về Main Thread để chuyển màn hình
+                DispatchQueue.main.async {
+                    self.isDownloading = false
                     self.importerResult = .success([destinationURL])
                     self.isImporterSelected = true
-                    
-                } catch {
+                }
+                
+            } catch {
+                // Nếu lỗi khi di chuyển file
+                DispatchQueue.main.async {
+                    self.isDownloading = false
                     self.importerResult = .failure(error)
                     self.isImporterSelected = true
                 }
