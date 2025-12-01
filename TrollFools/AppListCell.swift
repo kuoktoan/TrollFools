@@ -67,7 +67,12 @@ var body: some View {
                         Image(systemName: "checkmark.seal.fill")
                             .foregroundColor(.green)
                             .font(.caption)
-                        Text(app.isInjected ? "Đã Mod" : "Có file chờ")
+                        // ĐÃ SỬA: Dùng NSLocalizedString
+                    // "Patched" thường được dịch là "Đã tiêm/Đã sửa"
+                    // "Pending" thường được dịch là "Đang chờ/Chưa kích hoạt"
+                    Text(app.isInjected 
+                        ? NSLocalizedString("Injected", comment: "") 
+                        : NSLocalizedString("Injected", comment: ""))
                             .font(.caption)
                             .foregroundColor(.secondary)
                     }
