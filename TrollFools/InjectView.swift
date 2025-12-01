@@ -114,34 +114,41 @@ struct InjectView: View {
             let injector = try InjectorV3(app.url)
             logFileURL = injector.latestLogFileURL
 
-            if injector.appID.isEmpty {
-                injector.appID = app.bid
-            }
-
-            if injector.teamID.isEmpty {
-                injector.teamID = app.teamID
-            }
+            if injector.appID.isEmpty { injector.appID = app.bid }
+            if injector.teamID.isEmpty { injector.teamID = app.teamID }
 
             injector.useWeakReference = useWeakReference
             injector.preferMainExecutable = preferMainExecutable
             injector.injectStrategy = injectStrategy
 
+            // 1. THỰC HIỆN INJECT
+            // Sau dòng này, dữ liệu đã được chép vào game thành công
             try injector.inject(urlList, shouldPersist: true)
+            
+            // 2. XÓA FILE TẢI VỀ (Code thêm mới)
+            // Vì inject xong rồi, file zip/dylib tải về không còn cần thiết nữa
+            for url in urlList {
+                do {
+                    // Kiểm tra xem file có nằm trong thư mục Tạm hoặc Documents không rồi mới xóa
+                    // (Để tránh xóa nhầm các file quan trọng khác nếu có)
+                    if url.path.contains("/tmp/") {
+                        try FileManager.default.removeItem(at: url)
+                        print("🗑️ Đã dọn dẹp file rác: \(url.lastPathComponent)")
+                    }
+                } catch {
+                    print("⚠️ Không thể xóa file: \(error)")
+                }
+            }
+            // -----------------------------------------------------
+
             return .success(injector.latestLogFileURL)
 
         } catch {
+            // Phần xử lý lỗi giữ nguyên
             DDLogError("\(error)", ddlog: InjectorV3.main.logger)
-
-            var userInfo: [String: Any] = [
-                NSLocalizedDescriptionKey: error.localizedDescription,
-            ]
-
-            if let logFileURL {
-                userInfo[NSURLErrorKey] = logFileURL
-            }
-
+            var userInfo: [String: Any] = [NSLocalizedDescriptionKey: error.localizedDescription]
+            if let logFileURL { userInfo[NSURLErrorKey] = logFileURL }
             let nsErr = NSError(domain: Constants.gErrorDomain, code: 0, userInfo: userInfo)
-
             return .failure(nsErr)
         }
     }
