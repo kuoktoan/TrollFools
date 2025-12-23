@@ -8,32 +8,91 @@
 import Combine
 import SwiftUI
 
+// --- ĐỊNH NGHĨA CÁC ENUM BỊ THIẾU ---
+enum FilterOption {
+    case all
+    case user
+    case system
+}
+
+// Model cho bộ lọc tìm kiếm
+struct FilterModel {
+    var searchKeyword: String = ""
+    var showPatchedOnly: Bool = false
+    var isSearching: Bool { !searchKeyword.isEmpty }
+}
+// ------------------------------------
+
 final class AppListModel: ObservableObject {
-    @Published var applications: [App] = []
-    @Published var filteredApplications: [App] = []
-    @Published var unsupportedCount: Int = 0
-
-    @Published var searchText: String = ""
-    @Published var filterOption: FilterOption = .all
-    @Published var activeScopeApps: [String: [App]] = [:]
-
-    private var cancellables = Set<AnyCancellable>()
     
-    // --- KHÔI PHỤC CÁC BIẾN CẦN THIẾT ---
+    // --- ĐỊNH NGHĨA SCOPE & CONSTANTS ---
+    enum Scope: String, CaseIterable {
+        case all
+        case user
+        case system
+    }
+    
     static let allowedCharacters = "ABCDEFGHIJKLMNOPQRSTUVWXYZ#"
     private static let allowedCharacterSet = CharacterSet(charactersIn: allowedCharacters)
-    // ------------------------------------
+    
+    // Các Bundle ID cần loại bỏ (Fix lỗi excludedIdentifiers)
+    static let excludedIdentifiers: Set<String> = [
+        "com.apple.webapp",
+        "com.82flex.TrollFools",
+    ]
+    
+    // Kiểm tra TrollStore (Fix lỗi hasTrollStore)
+    static var hasTrollStore: Bool {
+        // Kiểm tra đơn giản đường dẫn TS
+        return FileManager.default.fileExists(atPath: "/Applications/TrollStore.app") 
+            || FileManager.default.fileExists(atPath: "/var/containers/Bundle/Application/TrollStore.app")
+    }
 
+    // --- CÁC BIẾN PUBLISHED (QUAN TRỌNG CHO VIEW) ---
+    @Published var applications: [App] = []
+    @Published var filteredApplications: [App] = []
+    @Published var activeScopeApps: [String: [App]] = [:]
+    @Published var unsupportedCount: Int = 0
+
+    // Các biến trạng thái View đang thiếu
+    @Published var filter = FilterModel() 
+    @Published var filterOption: FilterOption = .all
+    @Published var activeScope: Scope = .all
+    @Published var isSelectorMode: Bool = false 
+    @Published var selectorURL: URL? = nil
+    @Published var isRebuildNeeded: Bool = false
+
+    // Kiểm tra Filza
+    var isFilzaInstalled: Bool {
+        return UIApplication.shared.canOpenURL(URL(string: "filza://")!)
+    }
+
+    private var cancellables = Set<AnyCancellable>()
+
+    // --- INIT ---
     init() {
-        $searchText
-            .combineLatest($applications, $filterOption)
+        // Init mặc định
+        setupBindings()
+        reload()
+    }
+    
+    // Init cho chế độ Selector (Fix lỗi InjectView)
+    init(selectorURL: URL?) {
+        self.isSelectorMode = true
+        self.selectorURL = selectorURL
+        setupBindings()
+        reload()
+    }
+    
+    private func setupBindings() {
+        // Lắng nghe thay đổi từ filter và scope để lọc danh sách
+        $filter.map { $0.searchKeyword }
+            .combineLatest($applications, $activeScope, $filter.map { $0.showPatchedOnly })
             .debounce(for: .seconds(0.3), scheduler: DispatchQueue.main)
-            .sink { [weak self] searchText, applications, filterOption in
-                self?.filterApplications(searchText: searchText, applications: applications, filterOption: filterOption)
+            .sink { [weak self] keyword, apps, scope, showPatched in
+                self?.filterApplications(keyword: keyword, applications: apps, scope: scope, showPatchedOnly: showPatched)
             }
             .store(in: &cancellables)
-
-        reload()
     }
 
     func reload() {
@@ -47,29 +106,35 @@ final class AppListModel: ObservableObject {
         }
     }
     
-    // --- KHÔI PHỤC HÀM NÀY ĐỂ FIX LỖI AppListView ---
     func rebuildIconCache() {
-        // Logic giả lập để tránh lỗi build, hoặc reload lại list
         reload()
     }
+    
+    func openInFilza(_ url: URL) {
+        guard let filzaURL = URL(string: "filza://\(url.path)") else { return }
+        UIApplication.shared.open(filzaURL)
+    }
 
-    private func filterApplications(searchText: String, applications: [App], filterOption: FilterOption) {
+    // --- LOGIC LỌC ỨNG DỤNG ---
+    private func filterApplications(keyword: String, applications: [App], scope: Scope, showPatchedOnly: Bool) {
         let filtered = applications.filter { app in
-            let matchesSearchText = searchText.isEmpty ||
-                app.name.localizedCaseInsensitiveContains(searchText) ||
-                app.bid.localizedCaseInsensitiveContains(searchText)
+            // 1. Lọc theo từ khóa
+            let matchesKeyword = keyword.isEmpty ||
+                app.name.localizedCaseInsensitiveContains(keyword) ||
+                app.bid.localizedCaseInsensitiveContains(keyword)
             
-            let matchesFilterOption: Bool
-            switch filterOption {
-            case .all:
-                matchesFilterOption = true
-            case .user:
-                matchesFilterOption = app.type == "User"
-            case .system:
-                matchesFilterOption = app.type == "System"
+            // 2. Lọc theo Scope (User/System)
+            let matchesScope: Bool
+            switch scope {
+            case .all: matchesScope = true
+            case .user: matchesScope = app.type == "User"
+            case .system: matchesScope = app.type == "System"
             }
+            
+            // 3. Lọc theo Patched (Đã inject hay chưa)
+            let matchesPatched = !showPatchedOnly || (InjectorV3(try! InjectorV3(app.url).bundleURL).hasInjectedAsset)
 
-            return matchesSearchText && matchesFilterOption
+            return matchesKeyword && matchesScope && matchesPatched
         }
 
         DispatchQueue.global(qos: .userInitiated).async {
@@ -81,7 +146,7 @@ final class AppListModel: ObservableObject {
         }
     }
 
-    // --- LOGIC LỌC PUBG & CROSSFIRE CỦA BẠN (Đã tích hợp vào đây) ---
+    // --- LOGIC GỐC + PUBG/CROSSFIRE ---
     private static func fetchApplications(_ unsupportedCount: inout Int) -> [App] {
         let allApps: [App] = LSApplicationWorkspace.default()
             .allApplications()
@@ -95,38 +160,32 @@ final class AppListModel: ObservableObject {
                     return nil
                 }
 
-                // 1. Logic lọc Crossfire/PUBG
+                // --- 1. LOGIC CROSSFIRE & PUBG ---
                 let isPubg = localizedName.localizedCaseInsensitiveContains("PUBG MOBILE")
                 let isCrossfire = id == "com.vnggames.cfl.crossfirelegends" || localizedName.localizedCaseInsensitiveContains("Crossfire")
 
                 guard isPubg || isCrossfire else {
                     return nil
                 }
+                // ---------------------------------
 
+                // Filter blacklist
                 guard !id.hasPrefix("wiki.qaq.") && !id.hasPrefix("com.82flex.") && !id.hasPrefix("ch.xxtou.") else {
                     return nil
                 }
-
-                guard !excludedIdentifiers.contains(id) else {
+                guard !Self.excludedIdentifiers.contains(id) else {
                     return nil
                 }
 
-                // 2. Logic đổi tên
+                // --- 2. LOGIC ĐỔI TÊN ---
                 var finalName = localizedName
-
                 if isPubg {
                     let lowerId = id.lowercased()
-                    if lowerId.contains("vn") {
-                        finalName = "PUBG MOBILE (VN)"
-                    } else if lowerId.contains("ig") {
-                        finalName = "PUBG MOBILE (GL)"
-                    } else if lowerId.contains("kr") {
-                        finalName = "PUBG MOBILE (KR)"
-                    } else if lowerId.contains("rekoo") {
-                        finalName = "PUBG MOBILE (TW)"
-                    } else {
-                        finalName = "PUBG MOBILE (GL)"
-                    }
+                    if lowerId.contains("vn") { finalName = "PUBG MOBILE (VN)" }
+                    else if lowerId.contains("ig") { finalName = "PUBG MOBILE (GL)" }
+                    else if lowerId.contains("kr") { finalName = "PUBG MOBILE (KR)" }
+                    else if lowerId.contains("rekoo") { finalName = "PUBG MOBILE (TW)" }
+                    else { finalName = "PUBG MOBILE (GL)" }
                 } else if isCrossfire {
                     finalName = "Crossfire Legends"
                 }
@@ -142,10 +201,7 @@ final class AppListModel: ObservableObject {
                     version: shortVersionString
                 )
 
-                guard app.isRemovable else {
-                    return nil
-                }
-
+                guard app.isRemovable else { return nil }
                 return app
             }
 
@@ -154,17 +210,10 @@ final class AppListModel: ObservableObject {
             .sorted { $0.name.localizedCaseInsensitiveCompare($1.name) == .orderedAscending }
 
         unsupportedCount = allApps.count - filteredApps.count
-
         return filteredApps
     }
 
-    // --- KHÔI PHỤC CÁC HÀM BỊ THIẾU (openInFilza, groupedAppList) ---
-
-    func openInFilza(_ url: URL) {
-        guard let filzaURL = URL(string: "filza://\(url.path)") else { return }
-        UIApplication.shared.open(filzaURL)
-    }
-
+    // --- HÀM HELPER GROUP LIST ---
     static func groupedAppList(_ applications: [App]) -> [String: [App]] {
         var groupedApps: [String: [App]] = [:]
         for char in allowedCharacters {
@@ -184,13 +233,12 @@ final class AppListModel: ObservableObject {
             }
         }
 
-        // Loại bỏ các nhóm rỗng
+        // Xóa key rỗng
         for (key, value) in groupedApps {
             if value.isEmpty {
                 groupedApps.removeValue(forKey: key)
             }
         }
-
         return groupedApps
     }
 }
