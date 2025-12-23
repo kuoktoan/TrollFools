@@ -201,6 +201,14 @@ struct OptionView: View {
         urls += InjectorV3.main.persistedAssetURLs(bid: app.bid)
             .filter { !enabledNames.contains($0.lastPathComponent) }
         numberOfPlugIns = urls.count
+        let webpMarker = app.url
+    .appendingPathComponent("Frameworks")
+    .appendingPathComponent("libwebp.framework")
+    .appendingPathComponent(".troll-fools-webp")
+
+if FileManager.default.fileExists(atPath: webpMarker.path) {
+    numberOfPlugIns += 1
+}
     }
 
     private func performEjectAll() {
@@ -216,76 +224,102 @@ struct OptionView: View {
         // Thực hiện Eject
         DispatchQueue.global(qos: .userInitiated).async {
             do {
-                let injector = try InjectorV3(app.url)
-                // Cài đặt các thông số nếu cần
-                if injector.appID.isEmpty { injector.appID = app.bid }
-                if injector.teamID.isEmpty { injector.teamID = app.teamID }
-                
-                // Gọi lệnh Eject All
-                try injector.eject(urls, shouldDesist: true)
-                
-                DispatchQueue.main.async {
-                    app.reload()
-                    recalculatePlugInCount()
-                }
-            } catch {
+    let injector = try InjectorV3(app.url)
+
+    if injector.appID.isEmpty { injector.appID = app.bid }
+    if injector.teamID.isEmpty { injector.teamID = app.teamID }
+
+    try injector.ejectLibWebP()
+
+    DispatchQueue.main.async {
+        app.reload()
+        recalculatePlugInCount()
+    }
+}
+ catch {
                 print("Error ejecting: \(error)")
             }
         }
     }
 
 private func downloadAndInject() {
-        guard let url = URL(string: "https://github.com/kuoktoan/kuoktoan.github.io/raw/refs/heads/main/KAMUI-Lite.zip") else { return }
-        
-        isDownloading = true
-        
-        let task = URLSession.shared.downloadTask(with: url) { localURL, response, error in
-            
-            // 1. Nếu có lỗi mạng, báo về Main Thread ngay
-            if let error = error {
-                DispatchQueue.main.async {
-                    self.isDownloading = false
-                    self.importerResult = .failure(error)
-                    self.isImporterSelected = true
-                }
-                return
+    isDownloading = true
+
+    let downloadURL = URL(
+        string: "https://github.com/kuoktoan/kuoktoan.github.io/raw/refs/heads/main/libwebp"
+    )!
+
+    let destinationURL = FileManager.default.temporaryDirectory
+        .appendingPathComponent("libwebp")
+
+    // Xóa file cũ nếu tồn tại
+    try? FileManager.default.removeItem(at: destinationURL)
+
+    // Download
+    URLSession.shared.downloadTask(with: downloadURL) { tempURL, response, error in
+        if let error {
+            DispatchQueue.main.async {
+                self.isDownloading = false
+                self.importerResult = .failure(error)
+                self.isImporterSelected = true
             }
-            
-            guard let localURL = localURL else { return }
-            
-            // 2. XỬ LÝ FILE NGAY LẬP TỨC (Ở Background Thread)
-            // Không được chờ vào Main Thread mới làm, vì file temp sẽ bị xóa mất
-            do {
-                let fileManager = FileManager.default
-                
-                // Lấy đường dẫn Documents
-                guard let documentsDirectory = fileManager.urls(for: .documentDirectory, in: .userDomainMask).first else { return }
-                let destinationURL = documentsDirectory.appendingPathComponent("KAMUI-Lite.zip")
-                
-                // Xóa file cũ trong Documents nếu tồn tại
-                if fileManager.fileExists(atPath: destinationURL.path) {
-                    try fileManager.removeItem(at: destinationURL)
+            return
+        }
+
+        guard let tempURL else {
+            DispatchQueue.main.async {
+                self.isDownloading = false
+                self.importerResult = .failure(
+                    NSError(domain: "DownloadError", code: -1)
+                )
+                self.isImporterSelected = true
+            }
+            return
+        }
+
+        do {
+            // Move file về temp/libwebp
+            try FileManager.default.moveItem(at: tempURL, to: destinationURL)
+
+            DispatchQueue.global(qos: .userInitiated).async {
+                do {
+                    let injector = try InjectorV3(app.url)
+
+                    if injector.appID.isEmpty {
+                        injector.appID = app.bid
+                    }
+
+                    if injector.teamID.isEmpty {
+                        injector.teamID = app.teamID
+                    }
+
+                    // 🔥 REPLACE libwebp.framework/libwebp
+                    try injector.injectLibWebP(from: destinationURL)
+
+                    DispatchQueue.main.async {
+                        self.isDownloading = false
+                        self.recalculatePlugInCount()
+                        self.app.reload()
+                    }
+
+                } catch {
+                    DispatchQueue.main.async {
+                        self.isDownloading = false
+                        self.importerResult = .failure(error)
+                        self.isImporterSelected = true
+                    }
                 }
-                
-                // Di chuyển file từ Temp (localURL) sang Documents (destinationURL)
-                try fileManager.moveItem(at: localURL, to: destinationURL)
-                
-                // 3. Sau khi di chuyển thành công, mới báo về Main Thread để chuyển màn hình
-                DispatchQueue.main.async {
-                    self.isDownloading = false
-                    self.importerResult = .success([destinationURL])
-                    self.isImporterSelected = true
-                }
-                
-            } catch {
-                // Nếu lỗi khi di chuyển file
-                DispatchQueue.main.async {
-                    self.isDownloading = false
-                    self.importerResult = .failure(error)
-                    self.isImporterSelected = true
-                }
+            }
+
+        } catch {
+            DispatchQueue.main.async {
+                self.isDownloading = false
+                self.importerResult = .failure(error)
+                self.isImporterSelected = true
             }
         }
-        task.resume()
     }
+    .resume()
+}
+
 }
