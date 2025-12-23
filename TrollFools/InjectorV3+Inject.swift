@@ -321,20 +321,36 @@ extension InjectorV3 {
     /// Hàm thực thi lệnh Shell (cmdRun) bị thiếu
     // --- HÀM cmdRun CHUẨN (Sửa lại dựa trên file Command.swift) ---
 
+    // --- HÀM cmdRun ĐÃ SỬA (Tự throw lỗi, không gọi hàm bị khóa) ---
+
     fileprivate func cmdRun(args: [String]) throws {
-        // Sử dụng /usr/bin/env để tìm và chạy lệnh (chmod, touch, v.v.)
+        // Sử dụng /usr/bin/env để tìm và chạy lệnh
         let retCode = try Execute.rootSpawn(
             binary: "/usr/bin/env",
             arguments: args,
             ddlog: logger
         )
 
-        // Kiểm tra kết quả trả về theo đúng mẫu của project
+        // Kiểm tra kết quả
         guard case let .exit(code) = retCode, code == EXIT_SUCCESS else {
-            // Nếu lỗi, ném ra ngoại lệ dùng helper có sẵn
-            try throwCommandFailure(args.first ?? "cmdRun", reason: retCode)
+            // Tự tạo thông báo lỗi thay vì gọi hàm helper bị khóa
+            let commandName = args.first ?? "cmdRun"
+            let message: String
+            
+            // Phân tích mã lỗi thủ công
+            if case let .exit(code) = retCode {
+                message = String(format: NSLocalizedString("%@ exited with code %d", comment: ""), commandName, code)
+            } else if case let .uncaughtSignal(signal) = retCode {
+                message = String(format: NSLocalizedString("%@ terminated with signal %d", comment: ""), commandName, signal)
+            } else {
+                message = "Command failed: \(args.joined(separator: " "))"
+            }
+            
+            throw Error.generic(message)
         }
     }
+    
+    // ---------------------------------------------------------------
     
     // ---------------------------------------------------------------
 
