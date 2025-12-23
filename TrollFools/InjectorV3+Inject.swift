@@ -319,14 +319,24 @@ extension InjectorV3 {
     // --- BẮT ĐẦU ĐOẠN CODE BỔ SUNG ---
     
     /// Hàm thực thi lệnh Shell (cmdRun) bị thiếu
+    // --- HÀM cmdRun CHUẨN (Sửa lại dựa trên file Command.swift) ---
+
     fileprivate func cmdRun(args: [String]) throws {
-        let receipt = AuxiliaryExecute.spawn(command: "/usr/bin/env", args: args)
-        
-        // --- SỬA Ở ĐÂY: Dùng .exitStatus thay vì .exitCode ---
-        if receipt.exitStatus != 0 {
-            throw Error.generic("Command failed: \(args.joined(separator: " "))\nOutput: \(receipt.stderr)")
+        // Sử dụng /usr/bin/env để tìm và chạy lệnh (chmod, touch, v.v.)
+        let retCode = try Execute.rootSpawn(
+            binary: "/usr/bin/env",
+            arguments: args,
+            ddlog: logger
+        )
+
+        // Kiểm tra kết quả trả về theo đúng mẫu của project
+        guard case let .exit(code) = retCode, code == EXIT_SUCCESS else {
+            // Nếu lỗi, ném ra ngoại lệ dùng helper có sẵn
+            try throwCommandFailure(args.first ?? "cmdRun", reason: retCode)
         }
     }
+    
+    // ---------------------------------------------------------------
 
     // --- KẾT THÚC ĐOẠN CODE BỔ SUNG ---
 }
