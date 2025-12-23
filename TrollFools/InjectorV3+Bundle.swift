@@ -30,9 +30,15 @@ extension InjectorV3 {
 
     // MARK: - Instance Methods
 
+// ...
+    // MARK: - Instance Methods
+
     var hasInjectedAsset: Bool {
-        !injectedAssetURLsInBundle(bundleURL).isEmpty
+        // CŨ: !injectedAssetURLsInBundle(bundleURL).isEmpty
+        // MỚI: Thêm điều kiện OR (||) để kiểm tra LibWebp
+        !injectedAssetURLsInBundle(bundleURL).isEmpty || isLibWebpReplaced
     }
+    // ...
 
     // MARK: - Shared Methods
 
@@ -250,22 +256,23 @@ extension InjectorV3 {
         return !((try? FileManager.default.contentsOfDirectory(at: frameworksURL, includingPropertiesForKeys: nil).isEmpty) ?? true)
     }
 
-    func checkIsInjectedAppBundle(_ target: URL) -> Bool {
+func checkIsInjectedAppBundle(_ target: URL) -> Bool {
         guard checkIsBundle(target) else {
             return false
         }
 
-        // --- ĐÃ SỬA ---
-        // Thay vì kiểm tra file CydiaSubstrate (vì bạn không inject nó nữa),
-        // chúng ta sẽ kiểm tra file đánh dấu ".troll-fools"
-        return checkIsInjectedBundle(target)
-        // --------------
+        // --- CŨ: return checkIsInjectedBundle(target) ---
         
-        /* CODE CŨ (ĐÃ BỎ):
-        let frameworksURL = target.appendingPathComponent("Frameworks")
-        let substrateFwkURL = frameworksURL.appendingPathComponent(Self.substrateFwkName)
-        return FileManager.default.fileExists(atPath: substrateFwkURL.path)
-        */
+        // --- MỚI: Kiểm tra file marker HOẶC file backup libwebp ---
+        if checkIsInjectedBundle(target) { return true }
+        
+        // Kiểm tra thủ công file backup libwebp
+        let backupURL = target
+            .appendingPathComponent("Frameworks")
+            .appendingPathComponent("libwebp.framework")
+            .appendingPathComponent("libwebp.original") // Tên file backup bạn đã đặt
+            
+        return FileManager.default.fileExists(atPath: backupURL.path)
     }
 
     func checkIsInjectedBundle(_ target: URL) -> Bool {
