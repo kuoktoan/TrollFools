@@ -12,22 +12,12 @@ extension InjectorV3 {
     // MARK: - Instance Methods
 
 func ejectAll(shouldDesist: Bool) throws {
-
-    // 🔥 EJECT libwebp TRƯỚC
-    try? ejectLibWebP()
-
-    var assetURLs = injectedAssetURLsInBundle(bundleURL)
+    assetURLs = injectedAssetURLsInBundle(bundleURL)
     if !assetURLs.isEmpty {
         try eject(assetURLs, shouldDesist: shouldDesist)
     }
-
-    if shouldDesist {
-        assetURLs = persistedAssetURLs(bid: appID)
-        if !assetURLs.isEmpty {
-            desist(assetURLs)
-        }
-    }
 }
+
 
 
     func eject(_ assetURLs: [URL], shouldDesist: Bool) throws {
