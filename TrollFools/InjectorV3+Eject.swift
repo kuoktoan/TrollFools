@@ -95,7 +95,7 @@ extension InjectorV3 {
 
     fileprivate func collectModifiedMachOs() throws -> [URL] {
         try frameworkMachOsInBundle(bundleURL)
-            .filter { hasAlternate($0) }.elements
+            .filter { hasAlternate($0) }
     }
 
     // MARK: - Load Commands
