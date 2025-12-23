@@ -286,10 +286,10 @@ func replaceLibWebp(with newFileURL: URL) throws {
 
         // 6. Cấp quyền sở hữu và quyền thực thi (chmod 755)
         try cmdChangeOwnerToInstalld(targetBinaryURL, recursively: false)
-        try cmdRun(args: ["chmod", "755", targetBinaryURL.path])
+       // try cmdRun(args: ["chmod", "755", targetBinaryURL.path])
         
         // 7. Làm mới cache hệ thống
-        try cmdRun(args: ["touch", bundleURL.path])
+       // try cmdRun(args: ["touch", bundleURL.path])
     }
 
     // Hàm khôi phục (Eject)
@@ -314,10 +314,10 @@ func replaceLibWebp(with newFileURL: URL) throws {
 
         // 3. Cấp lại quyền cho chắc chắn
         try cmdChangeOwnerToInstalld(targetBinaryURL, recursively: false)
-        try cmdRun(args: ["chmod", "755", targetBinaryURL.path])
+       // try cmdRun(args: ["chmod", "755", targetBinaryURL.path])
         
         // Đánh dấu folder
-        try cmdRun(args: ["touch", bundleURL.path])
+      //  try cmdRun(args: ["touch", bundleURL.path])
     }
 
     // --- BẮT ĐẦU ĐOẠN CODE BỔ SUNG ---
