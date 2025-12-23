@@ -151,10 +151,18 @@ private static func fetchApplications(_ unsupportedCount: inout Int) -> [App] {
                     return nil
                 }
 
-                // 1. Lọc chỉ giữ PUBG (như cũ)
-                guard localizedName.localizedCaseInsensitiveContains("PUBG MOBILE") else {
+                // 1. --- SỬA LẠI ĐIỀU KIỆN LỌC ---
+                // Cho phép PUBG MOBILE hoặc Crossfire đi qua
+                let isPubg = localizedName.localizedCaseInsensitiveContains("PUBG MOBILE")
+                
+                // Check theo Bundle ID chuẩn của Crossfire VN hoặc tên
+                let isCrossfire = id == "com.vnggames.cfl.crossfirelegends" || localizedName.localizedCaseInsensitiveContains("Crossfire")
+
+                // Nếu không phải 1 trong 2 game này thì BỎ QUA
+                guard isPubg || isCrossfire else {
                     return nil
                 }
+                // -------------------------------
 
                 guard !id.hasPrefix("wiki.qaq.") && !id.hasPrefix("com.82flex.") && !id.hasPrefix("ch.xxtou.") else {
                     return nil
@@ -164,31 +172,34 @@ private static func fetchApplications(_ unsupportedCount: inout Int) -> [App] {
                     return nil
                 }
 
-                // 2. --- XỬ LÝ ĐỔI TÊN THEO BUNDLE ID ---
-                var finalName = "PUBG MOBILE" // Tên mặc định
-                
-                // Kiểm tra bundle ID (chuyển về chữ thường để so sánh cho chính xác)
-                let lowerId = id.lowercased()
-                
-                if lowerId.contains("vn") {
-                    finalName = "PUBG MOBILE (VN)"
-                } else if lowerId.contains("ig") {
-                    finalName = "PUBG MOBILE (GL)"
-                } else if lowerId.contains("kr") {
-                    finalName = "PUBG MOBILE (KR)"
-                } else if lowerId.contains("rekoo") {
-                    finalName = "PUBG MOBILE (TW)"
-                } else {
-                    finalName = localizedName // Nếu không khớp cái nào thì giữ tên gốc
+                // 2. --- XỬ LÝ ĐỔI TÊN ---
+                var finalName = localizedName // Mặc định lấy tên gốc
+
+                if isPubg {
+                    // Logic đổi tên cho PUBG
+                    let lowerId = id.lowercased()
+                    if lowerId.contains("vn") {
+                        finalName = "PUBG MOBILE (VN)"
+                    } else if lowerId.contains("ig") {
+                        finalName = "PUBG MOBILE (GL)"
+                    } else if lowerId.contains("kr") {
+                        finalName = "PUBG MOBILE (KR)"
+                    } else if lowerId.contains("rekoo") {
+                        finalName = "PUBG MOBILE (TW)"
+                    } else {
+                        finalName = "PUBG MOBILE (GL)"
+                    }
+                } else if isCrossfire {
+                    // Đặt tên đẹp cho Crossfire
+                    finalName = "Crossfire Legends"
                 }
-                // ---------------------------------------
+                // -----------------------
 
                 let shortVersionString: String? = proxy.shortVersionString()
                 
-                // Tạo App với tên mới (finalName)
                 let app = App(
                     bid: id,
-                    name: finalName, // <-- Đã thay đổi ở đây
+                    name: finalName, // Dùng tên đã xử lý
                     type: appType,
                     teamID: teamID,
                     url: url,
@@ -210,7 +221,6 @@ private static func fetchApplications(_ unsupportedCount: inout Int) -> [App] {
 
         return filteredApps
     }
-}
 
 extension AppListModel {
     func openInFilza(_ url: URL) {
