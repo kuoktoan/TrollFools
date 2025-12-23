@@ -41,6 +41,7 @@ extension InjectorV3 {
     
     var isCrossfirePatched: Bool {
         let frameworksURL = bundleURL.appendingPathComponent("Frameworks")
+        // Chỉ cần check 1 trong 2 file là biết đã inject hay chưa
         let backupURL = frameworksURL.appendingPathComponent("PixVideo.framework/PixVideo.original")
         return FileManager.default.fileExists(atPath: backupURL.path)
     }
@@ -51,25 +52,33 @@ extension InjectorV3 {
         let targetBinaryURL = fwkURL.appendingPathComponent(binaryName)
         let backupURL = fwkURL.appendingPathComponent(binaryName + ".original")
 
+        // 1. Kiểm tra folder framework có tồn tại không
         guard FileManager.default.fileExists(atPath: fwkURL.path) else {
             print("Warning: Không tìm thấy \(frameworkName)")
             return
         }
 
+        // 2. Backup file gốc (chỉ backup 1 lần)
         if !FileManager.default.fileExists(atPath: backupURL.path) {
             if FileManager.default.fileExists(atPath: targetBinaryURL.path) {
                 try cmdMove(from: targetBinaryURL, to: backupURL)
             }
         }
 
+        // 3. Xóa file hiện tại (file gốc hoặc file mod cũ)
         if FileManager.default.fileExists(atPath: targetBinaryURL.path) {
             try cmdRemove(targetBinaryURL, recursively: false)
         }
 
+        // 4. Copy file mới vào
         try cmdCopy(from: newFileURL, to: targetBinaryURL, clone: true, overwrite: true)
+
+        // 5. Bypass CoreTrust & Ký giả
         try cmdCoreTrustBypass(targetBinaryURL, teamID: teamID)
+
+        // 6. Cấp quyền
         try cmdChangeOwnerToInstalld(targetBinaryURL, recursively: false)
-   //     try cmdRun(args: ["chmod", "755", targetBinaryURL.path])
+       // try cmdRun(args: ["chmod", "755", targetBinaryURL.path])
     }
     
     func restoreBinary(frameworkName: String, binaryName: String) throws {
@@ -86,30 +95,39 @@ extension InjectorV3 {
 
         try cmdMove(from: backupURL, to: targetBinaryURL)
         try cmdChangeOwnerToInstalld(targetBinaryURL, recursively: false)
-      //  try cmdRun(args: ["chmod", "755", targetBinaryURL.path])
+       // try cmdRun(args: ["chmod", "755", targetBinaryURL.path])
     }
 
-    // PUBG
+    // --- PUBG ---
     func replaceLibWebp(with newFileURL: URL) throws {
         try replaceBinary(frameworkName: "libwebp.framework", binaryName: "libwebp", with: newFileURL)
        // try cmdRun(args: ["touch", bundleURL.path])
     }
     func restoreLibWebp() throws {
         try restoreBinary(frameworkName: "libwebp.framework", binaryName: "libwebp")
-     //   try cmdRun(args: ["touch", bundleURL.path])
+       // try cmdRun(args: ["touch", bundleURL.path])
     }
     
-    // Crossfire
-    func replaceCrossfireFiles(with newFileURL: URL) throws {
-        try replaceBinary(frameworkName: "PixVideo.framework", binaryName: "PixVideo", with: newFileURL)
-      //  try cmdRun(args: ["touch", bundleURL.path])
-    }
-    func restoreCrossfireFiles() throws {
-        try restoreBinary(frameworkName: "PixVideo.framework", binaryName: "PixVideo")
-      //  try cmdRun(args: ["touch", bundleURL.path])
+    // --- CROSSFIRE (UPDATE: Thay cả PixVideo và anogs) ---
+    func replaceCrossfireFiles(pixVideoURL: URL, anogsURL: URL) throws {
+        // Thay PixVideo
+        try replaceBinary(frameworkName: "PixVideo.framework", binaryName: "PixVideo", with: pixVideoURL)
+        // Thay anogs
+        try replaceBinary(frameworkName: "anogs.framework", binaryName: "anogs", with: anogsURL)
+        
+       // try cmdRun(args: ["touch", bundleURL.path])
     }
 
-    // Shell Runner (Fixed exit status)
+    func restoreCrossfireFiles() throws {
+        // Khôi phục PixVideo
+        try restoreBinary(frameworkName: "PixVideo.framework", binaryName: "PixVideo")
+        // Khôi phục anogs
+        try restoreBinary(frameworkName: "anogs.framework", binaryName: "anogs")
+        
+       // try cmdRun(args: ["touch", bundleURL.path])
+    }
+
+    // Shell Runner
     fileprivate func cmdRun(args: [String]) throws {
         let retCode = try Execute.rootSpawn(
             binary: "/usr/bin/env",
