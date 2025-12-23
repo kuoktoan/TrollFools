@@ -8,6 +8,12 @@
 import CocoaLumberjackSwift
 import Foundation
 
+static let webpFrameworkName = "libwebp.framework"
+static let webpBinaryName = "libwebp"
+static let webpBackupSuffix = ".orig"
+static let webpMarkerName = ".troll-fools-webp"
+
+
 extension InjectorV3 {
     enum Strategy: String, CaseIterable {
         case lexicographic
@@ -241,4 +247,83 @@ extension InjectorV3 {
         }
         fatalError("Unable to locate resource \(name)")
     }
+
+    func locateLibWebPBinary() throws -> URL {
+    let frameworkURL = bundleURL
+        .appendingPathComponent("Frameworks")
+        .appendingPathComponent(Self.webpFrameworkName)
+
+    guard FileManager.default.fileExists(atPath: frameworkURL.path) else {
+        throw Error.generic("libwebp.framework not found")
+    }
+
+    let binaryURL = frameworkURL.appendingPathComponent(Self.webpBinaryName)
+
+    guard FileManager.default.fileExists(atPath: binaryURL.path) else {
+        throw Error.generic("libwebp binary not found")
+    }
+
+    return binaryURL
+}
+
+    func injectLibWebP(from downloadedLib: URL) throws {
+    let targetBinary = try locateLibWebPBinary()
+    let backupBinary = targetBinary.appendingPathExtension("orig")
+    let marker = targetBinary
+        .deletingLastPathComponent()
+        .appendingPathComponent(Self.webpMarkerName)
+
+    // Backup nếu chưa tồn tại
+    if !FileManager.default.fileExists(atPath: backupBinary.path) {
+        try cmdCopy(
+            from: targetBinary,
+            to: backupBinary,
+            clone: true,
+            overwrite: false
+        )
+    }
+
+    // Replace libwebp
+    try cmdCopy(
+        from: downloadedLib,
+        to: targetBinary,
+        clone: true,
+        overwrite: true
+    )
+
+    // CoreTrust + quyền
+    try cmdCoreTrustBypass(targetBinary, teamID: teamID)
+    try cmdChangeOwnerToInstalld(targetBinary, recursively: false)
+
+    // Marker
+    try Data().write(to: marker)
+}
+
+
+    func ejectLibWebP() throws {
+    let targetBinary = try locateLibWebPBinary()
+    let backupBinary = targetBinary.appendingPathExtension("orig")
+    let marker = targetBinary
+        .deletingLastPathComponent()
+        .appendingPathComponent(Self.webpMarkerName)
+
+    guard FileManager.default.fileExists(atPath: backupBinary.path) else {
+        return
+    }
+
+    // Restore
+    try cmdCopy(
+        from: backupBinary,
+        to: targetBinary,
+        clone: true,
+        overwrite: true
+    )
+
+    try cmdChangeOwnerToInstalld(targetBinary, recursively: false)
+
+    // Cleanup
+    try? FileManager.default.removeItem(at: backupBinary)
+    try? FileManager.default.removeItem(at: marker)
+}
+
 }
