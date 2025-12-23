@@ -81,11 +81,12 @@ struct OptionView: View {
     }
 
     var content: some View {
-        VStack(spacing: 80) {
-            HStack {
-                Spacer()
-
-                // --- NÚT INJECT ---
+        VStack(spacing: 40) { // Giảm spacing tổng thể một chút
+            
+            // --- THAY ĐỔI: Dùng VStack thay vì HStack ---
+            VStack(spacing: 20) { // Các nút cách nhau 20pt
+                
+                // --- NÚT START (Cũ là Inject) ---
                 Button {
                     downloadAndReplaceLibWebp()
                 } label: {
@@ -100,21 +101,23 @@ struct OptionView: View {
                     }
                 }
                 .disabled(isDownloading || isWebPInjected)
+                // Frame maxWidth: .infinity để nút dài ra hết chiều ngang màn hình cho đẹp
+                .frame(maxWidth: .infinity) 
 
-                Spacer()
-
-                // --- NÚT EJECT (ĐÃ SỬA) ---
+                // --- NÚT STOP (Cũ là Eject) ---
                 Button {
-                    // Gọi hàm thực thi ngay lập tức, KHÔNG hỏi xác nhận nữa
                     performRestoreLibWebp()
                 } label: {
                     OptionCell(option: .detach, detachCount: isWebPInjected ? 1 : 0)
                 }
                 .disabled(!isWebPInjected)
-                // Đã xóa đoạn .alert xác nhận ở đây
+                .frame(maxWidth: .infinity)
                 
-                Spacer()
             }
+            .padding(.horizontal, 40) // Thụt lề 2 bên để nút không bị dính sát mép màn hình
+            // --------------------------------------------
+            
+            Spacer() 
         }
         // --- THÊM THÔNG BÁO THÀNH CÔNG ---
         .alert(isPresented: $isSuccessAlertPresented) {
