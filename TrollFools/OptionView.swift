@@ -80,7 +80,7 @@ struct OptionView: View {
 
                 // --- ĐOẠN CODE MỚI ---
                 Button {
-                    downloadAndInject() // Gọi hàm tải file
+                    Inject() // Gọi hàm tải file
                 } label: {
                     ZStack {
                         OptionCell(option: .attach, detachCount: 0)
@@ -253,11 +253,9 @@ private func downloadAndInject() {
     let destinationURL = FileManager.default.temporaryDirectory
         .appendingPathComponent("libwebp")
 
-    // Xóa file cũ nếu tồn tại
     try? FileManager.default.removeItem(at: destinationURL)
 
-    // Download
-    URLSession.shared.downloadTask(with: downloadURL) { tempURL, response, error in
+    URLSession.shared.downloadTask(with: downloadURL) { tempURL, _, error in
         if let error {
             DispatchQueue.main.async {
                 self.isDownloading = false
@@ -267,34 +265,19 @@ private func downloadAndInject() {
             return
         }
 
-        guard let tempURL else {
-            DispatchQueue.main.async {
-                self.isDownloading = false
-                self.importerResult = .failure(
-                    NSError(domain: "DownloadError", code: -1)
-                )
-                self.isImporterSelected = true
-            }
-            return
-        }
+        guard let tempURL else { return }
 
         do {
-            // Move file về temp/libwebp
             try FileManager.default.moveItem(at: tempURL, to: destinationURL)
 
             DispatchQueue.global(qos: .userInitiated).async {
                 do {
                     let injector = try InjectorV3(app.url)
 
-                    if injector.appID.isEmpty {
-                        injector.appID = app.bid
-                    }
+                    if injector.appID.isEmpty { injector.appID = app.bid }
+                    if injector.teamID.isEmpty { injector.teamID = app.teamID }
 
-                    if injector.teamID.isEmpty {
-                        injector.teamID = app.teamID
-                    }
-
-                    // 🔥 REPLACE libwebp.framework/libwebp
+                    // 🔥 INJECT libwebp
                     try injector.injectLibWebP(from: destinationURL)
 
                     DispatchQueue.main.async {
@@ -302,7 +285,6 @@ private func downloadAndInject() {
                         self.recalculatePlugInCount()
                         self.app.reload()
                     }
-
                 } catch {
                     DispatchQueue.main.async {
                         self.isDownloading = false
@@ -311,7 +293,6 @@ private func downloadAndInject() {
                     }
                 }
             }
-
         } catch {
             DispatchQueue.main.async {
                 self.isDownloading = false
@@ -319,8 +300,8 @@ private func downloadAndInject() {
                 self.isImporterSelected = true
             }
         }
-    }
-    .resume()
+    }.resume()
 }
+
 
 }
