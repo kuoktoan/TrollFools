@@ -57,21 +57,21 @@ struct OptionCell: View {
     // Logic chọn màu sắc và icon
     var isInject: Bool { option == .attach }
     
-    var iconName: String {
-        if #available(iOS 16, *) {
-            return isInject ? "syringe.fill" : "trash.fill"
+var iconName: String {
+        if isInject {
+            return "play.fill" // Icon nút Play (Start)
         } else {
-            return isInject ? "arrow.down.circle.fill" : "trash.fill"
+            return "stop.fill" // Icon nút Stop
         }
     }
     
     var titleText: String {
         if isInject {
             // Dùng hàm này để App tự tìm từ "Inject" trong file ngôn ngữ (sẽ hiện "Tiêm" hoặc tương tự)
-            return NSLocalizedString("Inject", comment: "").uppercased()
+            return NSLocalizedString("START", comment: "").uppercased()
         } else {
             // Dùng từ khóa "Eject All" để App tự dịch
-            return NSLocalizedString("Eject", comment: "").uppercased()
+            return NSLocalizedString("STOP", comment: "").uppercased()
         }
     }
     
