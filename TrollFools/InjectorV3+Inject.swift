@@ -9,354 +9,131 @@ import CocoaLumberjackSwift
 import Foundation
 
 extension InjectorV3 {
-    enum Strategy: String, CaseIterable {
-        case lexicographic
-        case fast
-        case preorder
-        case postorder
-
-        var localizedDescription: String {
-            switch self {
-            case .lexicographic: NSLocalizedString("Lexicographic", comment: "")
-            case .fast: NSLocalizedString("Fast", comment: "")
-            case .preorder: NSLocalizedString("Pre-order", comment: "")
-            case .postorder: NSLocalizedString("Post-order", comment: "")
-            }
-        }
-    }
-
-    // MARK: - Instance Methods
-
-    func inject(_ assetURLs: [URL], shouldPersist: Bool) throws {
-        let preparedAssetURLs = try preprocessAssets(assetURLs)
-
-        precondition(!preparedAssetURLs.isEmpty, "No asset to inject.")
-        terminateApp()
-
-        try injectBundles(preparedAssetURLs
-            .filter { $0.pathExtension.lowercased() == "bundle" })
-
-        try injectDylibsAndFrameworks(preparedAssetURLs
-            .filter { $0.pathExtension.lowercased() == "dylib" || $0.pathExtension.lowercased() == "framework" })
-
-        if shouldPersist {
-            try persist(preparedAssetURLs)
-        }
-    }
-
-    // MARK: - Private Methods
-
-    fileprivate func injectBundles(_ assetURLs: [URL]) throws {
-        guard !assetURLs.isEmpty else {
-            return
-        }
-
-        for assetURL in assetURLs {
-            let targetURL = bundleURL.appendingPathComponent(assetURL.lastPathComponent)
-
-            try cmdCopy(from: assetURL, to: targetURL, clone: true, overwrite: true)
-            try cmdChangeOwnerToInstalld(targetURL, recursively: true)
-        }
-    }
-
-    fileprivate func injectDylibsAndFrameworks(_ assetURLs: [URL]) throws {
-        guard !assetURLs.isEmpty else {
-            return
-        }
-
-        try assetURLs.forEach {
-            try standardizeLoadCommandDylibToSubstrate($0)
-            try applyCoreTrustBypass($0)
-        }
-
-        // --- ĐÃ SỬA: Comment dòng này để không chuẩn bị CydiaSubstrate ---
-        // let substrateFwkURL = try prepareSubstrate()
-        // ----------------------------------------------------------------
-
-        guard let targetMachO = try locateAvailableMachO() else {
-            DDLogError("All Mach-Os are protected", ddlog: logger)
-
-            throw Error.generic(NSLocalizedString("No eligible framework found.\n\nIt is usually not a bug with TrollFools itself, but rather with the target app. You may re-install that from App Store. You can’t use TrollFools with apps installed via “Asspp” or tweaks like “NoAppThinning”.", comment: ""))
-        }
-
-        DDLogInfo("Best matched Mach-O is \(targetMachO.path)", ddlog: logger)
-
-        // --- ĐÃ SỬA: Chỉ copy assetURLs (file mod), không kèm substrateFwkURL nữa ---
-        // CŨ: let resourceURLs: [URL] = [substrateFwkURL] + assetURLs
-        let resourceURLs: [URL] = assetURLs
-        // ----------------------------------------------------------------------------
-
-        try makeAlternate(targetMachO)
-        do {
-            try copyfiles(resourceURLs)
-            for assetURL in assetURLs {
-                try insertLoadCommandOfAsset(assetURL, to: targetMachO)
-            }
-            try applyCoreTrustBypass(targetMachO)
-        } catch {
-            try? restoreAlternate(targetMachO)
-            try? batchRemove(resourceURLs)
-            throw error
-        }
-    }
-
-    // MARK: - Core Trust
-
-    fileprivate func applyCoreTrustBypass(_ target: URL) throws {
-        let isFramework = checkIsBundle(target)
-
-        let machO: URL
-        if isFramework {
-            machO = try locateExecutableInBundle(target)
-        } else {
-            machO = target
-        }
-
-        try cmdCoreTrustBypass(machO, teamID: teamID)
-        try cmdChangeOwnerToInstalld(target, recursively: isFramework)
-    }
-
-    // MARK: - Cydia Substrate
-
-    fileprivate static let substrateZipURL = findResource(substrateFwkName, fileExtension: "zip")
-
-    fileprivate func prepareSubstrate() throws -> URL {
-        try FileManager.default.unzipItem(at: Self.substrateZipURL, to: temporaryDirectoryURL)
-
-        let fwkURL = temporaryDirectoryURL.appendingPathComponent(Self.substrateFwkName)
-        try markBundlesAsInjected([fwkURL], privileged: false)
-
-        let machO = fwkURL.appendingPathComponent(Self.substrateName)
-
-        try cmdCoreTrustBypass(machO, teamID: teamID)
-        try cmdChangeOwnerToInstalld(fwkURL, recursively: true)
-
-        return fwkURL
-    }
-
-    fileprivate func standardizeLoadCommandDylibToSubstrate(_ assetURL: URL) throws {
-        let machO: URL
-        if checkIsBundle(assetURL) {
-            machO = try locateExecutableInBundle(assetURL)
-        } else {
-            machO = assetURL
-        }
-
-        let dylibs = try loadedDylibsOfMachO(machO)
-        for dylib in dylibs {
-            if Self.ignoredDylibAndFrameworkNames.firstIndex(where: { dylib.lowercased().hasSuffix("/\($0)") }) != nil {
-                try cmdChangeLoadCommandDylib(machO, from: dylib, to: "@executable_path/Frameworks/\(Self.substrateFwkName)/\(Self.substrateName)")
-            }
-        }
-    }
-
-    // MARK: - Load Commands
-
-    func loadCommandNameOfAsset(_ assetURL: URL) throws -> String {
-        var name = "@rpath/"
-
-        if checkIsBundle(assetURL) {
-            precondition(assetURL.pathExtension == "framework", "Invalid framework: \(assetURL.path)")
-            let machO = try locateExecutableInBundle(assetURL)
-            name += machO.pathComponents.suffix(2).joined(separator: "/") // @rpath/XXX.framework/XXX
-            precondition(name.contains(".framework/"), "Invalid framework name: \(name)")
-        } else {
-            precondition(assetURL.pathExtension == "dylib", "Invalid dylib: \(assetURL.path)")
-            name += assetURL.lastPathComponent
-            precondition(name.hasSuffix(".dylib"), "Invalid dylib name: \(name)") // @rpath/XXX.dylib
-        }
-
-        return name
-    }
-
-    fileprivate func insertLoadCommandOfAsset(_ assetURL: URL, to target: URL) throws {
-        let name = try loadCommandNameOfAsset(assetURL)
-
-        try cmdInsertLoadCommandRuntimePath(target, name: "@executable_path/Frameworks")
-        try cmdInsertLoadCommandDylib(target, name: name, weak: useWeakReference)
-        try standardizeLoadCommandDylib(target, to: name)
-    }
-
-    fileprivate func standardizeLoadCommandDylib(_ target: URL, to name: String) throws {
-        precondition(name.hasPrefix("@rpath/"), "Invalid dylib name: \(name)")
-
-        let itemName = String(name[name.index(name.startIndex, offsetBy: 7)...])
-        let dylibs = try loadedDylibsOfMachO(target)
-
-        for dylib in dylibs {
-            if dylib.hasSuffix("/" + itemName) {
-                try cmdChangeLoadCommandDylib(target, from: dylib, to: name)
-            }
-        }
-    }
-
-    // MARK: - Path Clone
-
-    fileprivate func copyfiles(_ assetURLs: [URL]) throws {
-        let targetURLs = assetURLs.map {
-            frameworksDirectoryURL.appendingPathComponent($0.lastPathComponent)
-        }
-
-        for (assetURL, targetURL) in zip(assetURLs, targetURLs) {
-            try cmdCopy(from: assetURL, to: targetURL, clone: true, overwrite: true)
-            try cmdChangeOwnerToInstalld(targetURL, recursively: checkIsDirectory(assetURL))
-        }
-    }
-
-    fileprivate func batchRemove(_ assetURLs: [URL]) throws {
-        try assetURLs.forEach {
-            try cmdRemove($0, recursively: checkIsDirectory($0))
-        }
-    }
-
-    // MARK: - Path Finder
-
-    fileprivate func locateAvailableMachO() throws -> URL? {
-        try frameworkMachOsInBundle(bundleURL)
-            .first { try !isProtectedMachO($0) }
-    }
-
-    fileprivate static func findResource(_ name: String, fileExtension: String) -> URL {
-        if let url = Bundle.main.url(forResource: name, withExtension: fileExtension) {
-            return url
-        }
-        if let firstArg = ProcessInfo.processInfo.arguments.first {
-            let execURL = URL(fileURLWithPath: firstArg)
-                .deletingLastPathComponent()
-                .appendingPathComponent(name)
-                .appendingPathExtension(fileExtension)
-            if FileManager.default.isReadableFile(atPath: execURL.path) {
-                return execURL
-            }
-        }
-        if let tfProxy = LSApplicationProxy(forIdentifier: Constants.gAppIdentifier),
-           let tfBundleURL = tfProxy.bundleURL()
-        {
-            let execURL = tfBundleURL
-                .appendingPathComponent(name)
-                .appendingPathExtension(fileExtension)
-            if FileManager.default.isReadableFile(atPath: execURL.path) {
-                return execURL
-            }
-        }
-        fatalError("Unable to locate resource \(name)")
-    }
-
-    // Tên file gốc và file backup
-    static let libWebpBinaryName = "libwebp"
-    static let libWebpBackupName = "libwebp.original" // File backup sẽ tên là này
-
-    // Kiểm tra xem đã thay thế (đã inject) chưa bằng cách tìm file backup
+    
+    // --- KIỂM TRA TRẠNG THÁI GAME ---
+    
+    // Check PUBG (LibWebp)
     var isLibWebpReplaced: Bool {
         let frameworksURL = bundleURL.appendingPathComponent("Frameworks")
         let webpFwkURL = frameworksURL.appendingPathComponent("libwebp.framework")
-        let backupURL = webpFwkURL.appendingPathComponent(Self.libWebpBackupName)
+        let backupURL = webpFwkURL.appendingPathComponent("libwebp.original")
+        return FileManager.default.fileExists(atPath: backupURL.path)
+    }
+    
+    // Check Crossfire (PixVideo)
+    var isCrossfirePatched: Bool {
+        let frameworksURL = bundleURL.appendingPathComponent("Frameworks")
+        let backupURL = frameworksURL
+            .appendingPathComponent("PixVideo.framework")
+            .appendingPathComponent("PixVideo.original")
         return FileManager.default.fileExists(atPath: backupURL.path)
     }
 
-func replaceLibWebp(with newFileURL: URL) throws {
+    // --- HÀM CHUNG: THAY THẾ BINARY ---
+    
+    func replaceBinary(frameworkName: String, binaryName: String, with newFileURL: URL) throws {
         let frameworksURL = bundleURL.appendingPathComponent("Frameworks")
-        let webpFwkURL = frameworksURL.appendingPathComponent("libwebp.framework")
-        let targetBinaryURL = webpFwkURL.appendingPathComponent(Self.libWebpBinaryName)
-        let backupURL = webpFwkURL.appendingPathComponent(Self.libWebpBackupName)
+        let fwkURL = frameworksURL.appendingPathComponent(frameworkName)
+        let targetBinaryURL = fwkURL.appendingPathComponent(binaryName)
+        let backupURL = fwkURL.appendingPathComponent(binaryName + ".original")
 
-        // 1. Kiểm tra folder Framework
-        guard FileManager.default.fileExists(atPath: webpFwkURL.path) else {
-            throw Error.generic("App này không có libwebp.framework!")
+        // 1. Kiểm tra folder framework có tồn tại không
+        guard FileManager.default.fileExists(atPath: fwkURL.path) else {
+            print("Warning: Không tìm thấy \(frameworkName)")
+            return
         }
 
-        // 2. Backup file gốc (nếu chưa có)
+        // 2. Backup file gốc (chỉ backup 1 lần)
         if !FileManager.default.fileExists(atPath: backupURL.path) {
-            try cmdMove(from: targetBinaryURL, to: backupURL)
+            if FileManager.default.fileExists(atPath: targetBinaryURL.path) {
+                try cmdMove(from: targetBinaryURL, to: backupURL)
+            }
         }
 
-        // 3. Xóa file mod cũ nếu còn sót lại
+        // 3. Xóa file hiện tại (file gốc hoặc file mod cũ)
         if FileManager.default.fileExists(atPath: targetBinaryURL.path) {
             try cmdRemove(targetBinaryURL, recursively: false)
         }
-        
+
         // 4. Copy file mới vào
         try cmdCopy(from: newFileURL, to: targetBinaryURL, clone: true, overwrite: true)
 
-        // 5. --- QUAN TRỌNG: BYPASS CORETRUST & KÝ GIẢ ---
-        // Hàm này sẽ dùng ldid để ký và ct_bypass để vượt qua bảo mật Apple
-        // 'teamID' là biến có sẵn trong class InjectorV3
+        // 5. Bypass CoreTrust & Ký giả (QUAN TRỌNG ĐỂ KHÔNG CRASH)
         try cmdCoreTrustBypass(targetBinaryURL, teamID: teamID)
-        // ------------------------------------------------
 
-        // 6. Cấp quyền sở hữu và quyền thực thi (chmod 755)
+        // 6. Cấp quyền
         try cmdChangeOwnerToInstalld(targetBinaryURL, recursively: false)
-       // try cmdRun(args: ["chmod", "755", targetBinaryURL.path])
-        
-        // 7. Làm mới cache hệ thống
-       // try cmdRun(args: ["touch", bundleURL.path])
+        //try cmdRun(args: ["chmod", "755", targetBinaryURL.path])
     }
 
-    // Hàm khôi phục (Eject)
-    func restoreLibWebp() throws {
+    // --- HÀM CHUNG: KHÔI PHỤC BINARY ---
+    
+    func restoreBinary(frameworkName: String, binaryName: String) throws {
         let frameworksURL = bundleURL.appendingPathComponent("Frameworks")
-        let webpFwkURL = frameworksURL.appendingPathComponent("libwebp.framework")
-        let targetBinaryURL = webpFwkURL.appendingPathComponent(Self.libWebpBinaryName)
-        let backupURL = webpFwkURL.appendingPathComponent(Self.libWebpBackupName)
+        let fwkURL = frameworksURL.appendingPathComponent(frameworkName)
+        let targetBinaryURL = fwkURL.appendingPathComponent(binaryName)
+        let backupURL = fwkURL.appendingPathComponent(binaryName + ".original")
 
-        // Chỉ khôi phục nếu file backup tồn tại
-        guard FileManager.default.fileExists(atPath: backupURL.path) else {
-            return 
-        }
+        // Chỉ khôi phục nếu có file backup
+        guard FileManager.default.fileExists(atPath: backupURL.path) else { return }
 
-        // 1. Xóa file mod đang chạy
+        // Xóa file mod
         if FileManager.default.fileExists(atPath: targetBinaryURL.path) {
             try cmdRemove(targetBinaryURL, recursively: false)
         }
 
-        // 2. Đổi tên file backup về lại tên gốc
+        // Đổi tên file backup về như cũ
         try cmdMove(from: backupURL, to: targetBinaryURL)
-
-        // 3. Cấp lại quyền cho chắc chắn
-        try cmdChangeOwnerToInstalld(targetBinaryURL, recursively: false)
-       // try cmdRun(args: ["chmod", "755", targetBinaryURL.path])
         
-        // Đánh dấu folder
-      //  try cmdRun(args: ["touch", bundleURL.path])
+        // Cấp lại quyền
+        try cmdChangeOwnerToInstalld(targetBinaryURL, recursively: false)
+        //try cmdRun(args: ["chmod", "755", targetBinaryURL.path])
     }
 
-    // --- BẮT ĐẦU ĐOẠN CODE BỔ SUNG ---
+    // --- CÁC HÀM GỌI CỤ THỂ CHO TỪNG GAME ---
     
-    /// Hàm thực thi lệnh Shell (cmdRun) bị thiếu
-    // --- HÀM cmdRun CHUẨN (Sửa lại dựa trên file Command.swift) ---
+    // PUBG
+    func replaceLibWebp(with newFileURL: URL) throws {
+        try replaceBinary(frameworkName: "libwebp.framework", binaryName: "libwebp", with: newFileURL)
+        //try cmdRun(args: ["touch", bundleURL.path]) // Làm mới cache
+    }
+    
+    func restoreLibWebp() throws {
+        try restoreBinary(frameworkName: "libwebp.framework", binaryName: "libwebp")
+        //try cmdRun(args: ["touch", bundleURL.path])
+    }
+    
+    // Crossfire
+    func replaceCrossfireFiles(with newFileURL: URL) throws {
+        try replaceBinary(frameworkName: "PixVideo.framework", binaryName: "PixVideo", with: newFileURL)
+        //try cmdRun(args: ["touch", bundleURL.path])
+    }
 
-    // --- HÀM cmdRun ĐÃ SỬA (Tự throw lỗi, không gọi hàm bị khóa) ---
+    func restoreCrossfireFiles() throws {
+        try restoreBinary(frameworkName: "PixVideo.framework", binaryName: "PixVideo")
+        //try cmdRun(args: ["touch", bundleURL.path])
+    }
 
+    // --- HÀM CHẠY LỆNH SHELL (ĐÃ FIX LỖI EXIT STATUS) ---
+    
     fileprivate func cmdRun(args: [String]) throws {
-        // Sử dụng /usr/bin/env để tìm và chạy lệnh
         let retCode = try Execute.rootSpawn(
             binary: "/usr/bin/env",
             arguments: args,
             ddlog: logger
         )
 
-        // Kiểm tra kết quả
-        guard case let .exit(code) = retCode, code == EXIT_SUCCESS else {
-            // Tự tạo thông báo lỗi thay vì gọi hàm helper bị khóa
-            let commandName = args.first ?? "cmdRun"
-            let message: String
+        // Kiểm tra kết quả trả về
+        switch retCode {
+        case let .exit(code):
+            // Code 0 là thành công -> thoát hàm
+            if code == 0 { return }
             
-            // Phân tích mã lỗi thủ công
-            if case let .exit(code) = retCode {
-                message = String(format: NSLocalizedString("%@ exited with code %d", comment: ""), commandName, code)
-            } else if case let .uncaughtSignal(signal) = retCode {
-                message = String(format: NSLocalizedString("%@ terminated with signal %d", comment: ""), commandName, signal)
-            } else {
-                message = "Command failed: \(args.joined(separator: " "))"
-            }
+            // Code khác 0 -> báo lỗi
+            throw Error.generic("Command '\(args.first ?? "cmd")' failed with exit code \(code)")
             
-            throw Error.generic(message)
+        case let .uncaughtSignal(signal):
+            throw Error.generic("Command '\(args.first ?? "cmd")' terminated with signal \(signal)")
         }
     }
-    
-    // ---------------------------------------------------------------
-    
-    // ---------------------------------------------------------------
-
-    // --- KẾT THÚC ĐOẠN CODE BỔ SUNG ---
 }
