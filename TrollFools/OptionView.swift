@@ -201,14 +201,15 @@ struct OptionView: View {
         urls += InjectorV3.main.persistedAssetURLs(bid: app.bid)
             .filter { !enabledNames.contains($0.lastPathComponent) }
         numberOfPlugIns = urls.count
-        let webpMarker = app.url
+let webpBackup = app.url
     .appendingPathComponent("Frameworks")
     .appendingPathComponent("libwebp.framework")
-    .appendingPathComponent(".troll-fools-webp")
+    .appendingPathComponent("libwebp.orig")
 
-if FileManager.default.fileExists(atPath: webpMarker.path) {
+if FileManager.default.fileExists(atPath: webpBackup.path) {
     numberOfPlugIns += 1
 }
+
     }
 
     private func performEjectAll() {
