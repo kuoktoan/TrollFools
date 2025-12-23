@@ -112,7 +112,7 @@ struct OptionView: View {
         // ALERT THÀNH CÔNG
         .alert(isPresented: $isSuccessAlertPresented) {
             Alert(
-                title: Text(NSLocalizedString("Completed", comment: "")),
+                title: Text(NSLocalizedString("Complete", comment: "")),
                 message: Text(NSLocalizedString(successMessage, comment: "")),
                 dismissButton: .default(Text("OK"))
             )
