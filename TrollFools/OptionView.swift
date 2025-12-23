@@ -195,53 +195,54 @@ struct OptionView: View {
     }
 
     private func recalculatePlugInCount() {
-        var urls = [URL]()
-        urls += InjectorV3.main.injectedAssetURLsInBundle(app.url)
-        let enabledNames = urls.map { $0.lastPathComponent }
-        urls += InjectorV3.main.persistedAssetURLs(bid: app.bid)
-            .filter { !enabledNames.contains($0.lastPathComponent) }
-        numberOfPlugIns = urls.count
-let webpBackup = app.url
-    .appendingPathComponent("Frameworks")
-    .appendingPathComponent("libwebp.framework")
-    .appendingPathComponent("libwebp.orig")
+    var count = 0
 
-if FileManager.default.fileExists(atPath: webpBackup.path) {
-    numberOfPlugIns += 1
+    // plugin thường
+    var urls = [URL]()
+    urls += InjectorV3.main.injectedAssetURLsInBundle(app.url)
+    let enabledNames = urls.map { $0.lastPathComponent }
+    urls += InjectorV3.main.persistedAssetURLs(bid: app.bid)
+        .filter { !enabledNames.contains($0.lastPathComponent) }
+    count += urls.count
+
+    // 🔥 libwebp detect bằng .orig
+    let backup = app.url
+        .appendingPathComponent("Frameworks")
+        .appendingPathComponent("libwebp.framework")
+        .appendingPathComponent("libwebp.orig")
+
+    if FileManager.default.fileExists(atPath: backup.path) {
+        count += 1
+    }
+
+    numberOfPlugIns = count
 }
 
-    }
 
     private func performEjectAll() {
-        // Lấy danh sách tất cả plugin đang có
-        var urls = [URL]()
-        urls += InjectorV3.main.injectedAssetURLsInBundle(app.url)
-        let enabledNames = urls.map { $0.lastPathComponent }
-        urls += InjectorV3.main.persistedAssetURLs(bid: app.bid)
-            .filter { !enabledNames.contains($0.lastPathComponent) }
+    DispatchQueue.global(qos: .userInitiated).async {
+        do {
+            let injector = try InjectorV3(app.url)
 
-        guard !urls.isEmpty else { return }
+            if injector.appID.isEmpty { injector.appID = app.bid }
+            if injector.teamID.isEmpty { injector.teamID = app.teamID }
 
-        // Thực hiện Eject
-        DispatchQueue.global(qos: .userInitiated).async {
-            do {
-    let injector = try InjectorV3(app.url)
+            // 🔥 EJECT libwebp
+            try injector.ejectLibWebP()
 
-    if injector.appID.isEmpty { injector.appID = app.bid }
-    if injector.teamID.isEmpty { injector.teamID = app.teamID }
+            // 🔥 EJECT plugin khác (nếu có)
+            try injector.ejectAll(shouldDesist: true)
 
-    try injector.ejectLibWebP()
-
-    DispatchQueue.main.async {
-        app.reload()
-        recalculatePlugInCount()
-    }
-}
- catch {
-                print("Error ejecting: \(error)")
+            DispatchQueue.main.async {
+                app.reload()
+                recalculatePlugInCount()
             }
+        } catch {
+            print("Eject error:", error)
         }
     }
+}
+
 
 private func downloadAndInject() {
     isDownloading = true
