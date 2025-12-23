@@ -26,19 +26,13 @@ extension InjectorV3 {
     // MARK: - Instance Methods
 
     var hasInjectedAsset: Bool {
-        // Kiểm tra xem có file dylib, marker HOẶC file mod game hay không
         !injectedAssetURLsInBundle(bundleURL).isEmpty || isLibWebpReplaced || isCrossfirePatched
     }
 
     func frameworkMachOsInBundle(_ target: URL) throws -> [URL] {
-        guard checkIsBundle(target) else {
-            return []
-        }
-
+        guard checkIsBundle(target) else { return [] }
         let frameworksURL = target.appendingPathComponent("Frameworks")
-        guard checkIsDirectory(frameworksURL) else {
-            return []
-        }
+        guard checkIsDirectory(frameworksURL) else { return [] }
 
         let frameworks = try FileManager.default.contentsOfDirectory(at: frameworksURL, includingPropertiesForKeys: nil)
             .filter { checkIsBundle($0) }
@@ -46,22 +40,17 @@ extension InjectorV3 {
 
         var machOs: [URL] = []
         for framework in frameworks {
-            let machO = try locateExecutableInBundle(framework)
-            machOs.append(machO)
+            if let machO = try? locateExecutableInBundle(framework) {
+                machOs.append(machO)
+            }
         }
-
         return machOs
     }
 
     func injectedAssetURLsInBundle(_ target: URL) -> [URL] {
-        guard checkIsBundle(target) else {
-            return []
-        }
-
+        guard checkIsBundle(target) else { return [] }
         let frameworksURL = target.appendingPathComponent("Frameworks")
-        guard checkIsDirectory(frameworksURL) else {
-            return []
-        }
+        guard checkIsDirectory(frameworksURL) else { return [] }
 
         guard let contents = try? FileManager.default.contentsOfDirectory(at: frameworksURL, includingPropertiesForKeys: nil) else {
             return []
@@ -71,17 +60,8 @@ extension InjectorV3 {
             .filter { url in
                 let ext = url.pathExtension.lowercased()
                 let name = url.lastPathComponent.lowercased()
-                
-                // Lọc các file dylib, deb, bundle, framework
                 let isValidType = ext == "dylib" || ext == "deb" || ext == "bundle" || ext == "framework"
-                
-                // Loại bỏ các file hệ thống bỏ qua
                 let isNotIgnored = !Self.ignoredDylibAndFrameworkNames.contains(name)
-                
-                // Loại bỏ các file framework gốc của App (thường không có dấu hiệu đặc biệt, 
-                // nhưng ở đây ta lọc các file do người dùng inject vào thường là dylib/deb)
-                // Hoặc đơn giản là trả về tất cả và để logic inject xử lý.
-                // Logic gốc của TrollFools thường check kỹ hơn, nhưng tạm thời:
                 return isValidType && isNotIgnored
             }
             .sorted { $0.lastPathComponent < $1.lastPathComponent }
@@ -89,10 +69,7 @@ extension InjectorV3 {
 
     func markBundlesAsInjected(_ bundles: [URL], privileged: Bool = false) throws {
         for bundle in bundles {
-            guard checkIsBundle(bundle) else {
-                continue
-            }
-            
+            guard checkIsBundle(bundle) else { continue }
             let markerURL = bundle.appendingPathComponent(Self.injectedMarkerName)
             if !FileManager.default.fileExists(atPath: markerURL.path) {
                 if privileged {
@@ -108,18 +85,13 @@ extension InjectorV3 {
 
     func checkIsInjectedAppBundle(_ target: URL) -> Bool {
         guard checkIsBundle(target) else { return false }
-
-        // 1. Kiểm tra cách cũ (file .troll-fools)
         if checkIsInjectedBundle(target) { return true }
         
-        // 2. Kiểm tra thủ công file backup của 2 game
+        // Kiểm tra thủ công file backup của 2 game
         let frameworksURL = target.appendingPathComponent("Frameworks")
-
-        // Check PUBG
         let webpBackup = frameworksURL.appendingPathComponent("libwebp.framework/libwebp.original")
         if FileManager.default.fileExists(atPath: webpBackup.path) { return true }
         
-        // Check Crossfire
         let cfBackup = frameworksURL.appendingPathComponent("PixVideo.framework/PixVideo.original")
         if FileManager.default.fileExists(atPath: cfBackup.path) { return true }
         
@@ -150,7 +122,13 @@ extension InjectorV3 {
         return !((try? FileManager.default.contentsOfDirectory(at: frameworksURL, includingPropertiesForKeys: nil).isEmpty) ?? true)
     }
 
-    func locateExecutableInBundle(_ bundleURL: URL) throws -> URL {
+    // --- CÁC HÀM LOCATE MÀ INJECTORV3.INIT() ĐANG GỌI ---
+    
+    // (Định nghĩa hàm này ở ngoài class, nhưng trong file này để tiện)
+    // Hoặc đưa vào extension InjectorV3
+
+    // Đưa vào extension InjectorV3 cho đúng chuẩn swift
+    static func locateExecutableInBundle(_ bundleURL: URL) throws -> URL {
         let infoPlistURL = bundleURL.appendingPathComponent(Self.infoPlistName)
         let infoPlistData = try Data(contentsOf: infoPlistURL)
         guard let infoPlist = try PropertyListSerialization.propertyList(from: infoPlistData, options: [], format: nil) as? [String: Any],
@@ -160,16 +138,28 @@ extension InjectorV3 {
         }
         return bundleURL.appendingPathComponent(executableName)
     }
+    
+    // Wrapper instance method
+    func locateExecutableInBundle(_ bundleURL: URL) throws -> URL {
+        return try Self.locateExecutableInBundle(bundleURL)
+    }
 
-    func locateFrameworksDirectoryInBundle(_ bundleURL: URL) throws -> URL {
+    static func locateFrameworksDirectoryInBundle(_ bundleURL: URL) throws -> URL {
         let frameworksURL = bundleURL.appendingPathComponent("Frameworks")
-        guard checkIsDirectory(frameworksURL) else {
-            throw Error.generic("Failed to locate Frameworks directory in bundle: \(bundleURL.lastPathComponent)")
+        // Chỉ check tồn tại, không check directory bằng hàm instance để tránh lỗi static
+        var isDir: ObjCBool = false
+        guard FileManager.default.fileExists(atPath: frameworksURL.path, isDirectory: &isDir) && isDir.boolValue else {
+             throw Error.generic("Failed to locate Frameworks directory in bundle: \(bundleURL.lastPathComponent)")
         }
         return frameworksURL
     }
+    
+    // Wrapper instance method
+    func locateFrameworksDirectoryInBundle(_ bundleURL: URL) throws -> URL {
+        return try Self.locateFrameworksDirectoryInBundle(bundleURL)
+    }
 
-    func identifierOfBundle(_ bundleURL: URL) throws -> String {
+    static func identifierOfBundle(_ bundleURL: URL) throws -> String {
         let infoPlistURL = bundleURL.appendingPathComponent(Self.infoPlistName)
         guard let infoPlistData = try? Data(contentsOf: infoPlistURL),
               let infoPlist = try? PropertyListSerialization.propertyList(from: infoPlistData, options: [], format: nil) as? [String: Any],
@@ -178,6 +168,11 @@ extension InjectorV3 {
             throw Error.generic("Failed to retrieve identifier of bundle: \(bundleURL.lastPathComponent)")
         }
         return identifier
+    }
+    
+    // Wrapper instance method
+    func identifierOfBundle(_ bundleURL: URL) throws -> String {
+        return try Self.identifierOfBundle(bundleURL)
     }
 
     func loadCommandNameOfAsset(_ assetURL: URL) throws -> String {
