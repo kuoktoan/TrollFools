@@ -7,7 +7,7 @@
 
 import Combine
 import SwiftUI
-import OrderedCollections // --- QUAN TRỌNG: Cần import cái này để dùng .elements
+import OrderedCollections
 
 enum FilterOption {
     case all
@@ -23,7 +23,6 @@ struct FilterModel {
 
 final class AppListModel: ObservableObject {
     
-    // --- SỬA: Thêm case .troll ---
     enum Scope: String, CaseIterable {
         case all
         case user
@@ -31,8 +30,16 @@ final class AppListModel: ObservableObject {
         case troll
     }
     
-    static let allowedCharacters = "ABCDEFGHIJKLMNOPQRSTUVWXYZ#"
-    private static let allowedCharacterSet = CharacterSet(charactersIn: allowedCharacters)
+    // --- CẤU HÌNH DANH SÁCH GAME HỖ TRỢ ---
+    static let pubgIds: Set<String> = [
+        "com.tencent.ig",       // Global
+        "com.rekoo.pubgm",      // Taiwan
+        "vn.vng.pubgmobile",    // Vietnam
+        "com.pubg.krmobile"     // Korea
+    ]
+    
+    static let crossfireId = "com.vnggames.cfl.crossfirelegends"
+    // --------------------------------------
     
     static let excludedIdentifiers: Set<String> = [
         "com.apple.webapp",
@@ -47,7 +54,7 @@ final class AppListModel: ObservableObject {
     @Published var applications: [App] = []
     @Published var filteredApplications: [App] = []
     
-    // --- SỬA: Dùng OrderedDictionary để sửa lỗi .elements ở View ---
+    // OrderedDictionary để giữ tương thích với View, nhưng chỉ chứa 1 Key duy nhất
     @Published var activeScopeApps: OrderedDictionary<String, [App]> = [:]
     
     @Published var unsupportedCount: Int = 0
@@ -118,11 +125,9 @@ final class AppListModel: ObservableObject {
             case .all: matchesScope = true
             case .user: matchesScope = app.type == "User"
             case .system: matchesScope = app.type == "System"
-            case .troll: matchesScope = app.type == "Troll" // Hoặc logic riêng cho TrollStore app
+            case .troll: matchesScope = app.type == "Troll"
             }
             
-            // --- SỬA LỖI TRY TẠI ĐÂY ---
-            // Dùng try? và kiểm tra optional thay vì gọi lồng nhau gây lỗi
             let isInjected = (try? InjectorV3(app.url))?.hasInjectedAsset ?? false
             let matchesPatched = !showPatchedOnly || isInjected
 
@@ -149,24 +154,33 @@ final class AppListModel: ObservableObject {
                       let localizedName = proxy.localizedName()
                 else { return nil }
 
-                let isPubg = localizedName.localizedCaseInsensitiveContains("PUBG MOBILE")
-                let isCrossfire = id == "com.vnggames.cfl.crossfirelegends" || localizedName.localizedCaseInsensitiveContains("Crossfire")
+                // --- 1. LOGIC CHECK BUNDLE ID CHÍNH XÁC ---
+                let isPubg = Self.pubgIds.contains(id)
+                let isCrossfire = (id == Self.crossfireId)
 
+                // Chỉ lấy đúng Game trong danh sách
                 guard isPubg || isCrossfire else { return nil }
+                // -------------------------------------------
 
                 guard !id.hasPrefix("wiki.qaq.") && !id.hasPrefix("com.82flex.") && !id.hasPrefix("ch.xxtou.") else { return nil }
                 guard !Self.excludedIdentifiers.contains(id) else { return nil }
 
+                // --- 2. ĐẶT TÊN HIỂN THỊ CHUẨN ---
                 var finalName = localizedName
-                if isPubg {
-                    let lowerId = id.lowercased()
-                    if lowerId.contains("vn") { finalName = "PUBG MOBILE (VN)" }
-                    else if lowerId.contains("ig") { finalName = "PUBG MOBILE (GL)" }
-                    else if lowerId.contains("kr") { finalName = "PUBG MOBILE (KR)" }
-                    else if lowerId.contains("rekoo") { finalName = "PUBG MOBILE (TW)" }
-                    else { finalName = "PUBG MOBILE (GL)" }
-                } else if isCrossfire {
-                    finalName = "Crossfire Legends"
+                
+                switch id {
+                case "com.tencent.ig":
+                    finalName = "PUBG MOBILE (GL)"
+                case "vn.vng.pubgmobile":
+                    finalName = "PUBG MOBILE (VN)"
+                case "com.pubg.krmobile":
+                    finalName = "PUBG MOBILE (KR)"
+                case "com.rekoo.pubgm":
+                    finalName = "PUBG MOBILE (TW)"
+                case Self.crossfireId:
+                    finalName = "Crossfire: Legends (VN)"
+                default:
+                    break
                 }
 
                 let shortVersionString: String? = proxy.shortVersionString()
@@ -192,31 +206,17 @@ final class AppListModel: ObservableObject {
         return filteredApps
     }
 
-    // --- SỬA: Trả về OrderedDictionary ---
+    // --- 3. SỬA HÀM GROUP: BỎ CHIA THEO CHỮ CÁI ---
     static func groupedAppList(_ applications: [App]) -> OrderedDictionary<String, [App]> {
+        // Thay vì chia A, B, C... ta gom hết vào 1 Key duy nhất.
+        // Điều này khiến danh sách bên phải (Index) biến mất hoặc chỉ còn 1 chấm.
         var groupedApps: OrderedDictionary<String, [App]> = [:]
-        for char in allowedCharacters {
-            groupedApps[String(char)] = []
+        
+        if !applications.isEmpty {
+            // Key rỗng hoặc "Games" để hiển thị tất cả trong 1 section
+            groupedApps[""] = applications
         }
-        groupedApps["#"] = []
-
-        for app in applications {
-            if let firstChar = app.name.first, let scalar = firstChar.unicodeScalars.first {
-                if !allowedCharacterSet.contains(scalar) {
-                    groupedApps["#"]?.append(app)
-                    continue
-                }
-                groupedApps[String(firstChar).uppercased()]?.append(app)
-            } else {
-                groupedApps["#"]?.append(app)
-            }
-        }
-
-        for (key, value) in groupedApps {
-            if value.isEmpty {
-                groupedApps.removeValue(forKey: key)
-            }
-        }
+        
         return groupedApps
     }
 }
