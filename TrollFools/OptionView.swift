@@ -25,7 +25,6 @@ struct OptionView: View {
     @State var numberOfPlugIns: Int = 0
     @State var isWebPInjected: Bool = false
     
-    // Biến thông báo thành công
     @State var isSuccessAlertPresented = false
     @State var successMessage = ""
 
@@ -75,12 +74,10 @@ struct OptionView: View {
         VStack {
             Spacer()
 
-            // Cụm nút bấm START/STOP nằm giữa
             VStack(spacing: 20) {
-                
-                // --- NÚT START ---
+                // START BUTTON
                 Button {
-                    downloadAndReplace() // Gọi hàm điều hướng thông minh
+                    downloadAndReplace()
                 } label: {
                     ZStack {
                         OptionCell(option: .attach, detachCount: 0)
@@ -95,21 +92,19 @@ struct OptionView: View {
                 .disabled(isDownloading || isWebPInjected)
                 .frame(maxWidth: .infinity)
 
-                // --- NÚT STOP ---
+                // STOP BUTTON
                 Button {
-                    performRestore() // Gọi hàm khôi phục thông minh
+                    performRestore()
                 } label: {
                     OptionCell(option: .detach, detachCount: isWebPInjected ? 1 : 0)
                 }
                 .disabled(!isWebPInjected)
                 .frame(maxWidth: .infinity)
-                
             }
             .padding(.horizontal, 40)
             
             Spacer()
         }
-        // ALERT THÀNH CÔNG
         .alert(isPresented: $isSuccessAlertPresented) {
             Alert(
                 title: Text(NSLocalizedString("Complete", comment: "")),
@@ -174,11 +169,8 @@ struct OptionView: View {
         return String(format: NSLocalizedString("You’ve selected at least one Debian Package “%@”. We’re here to remind you that it will not work as it was in a jailbroken environment. Please make sure you know what you’re doing.", comment: ""), firstDylibName)
     }
 
-    // MARK: - Logic Cập Nhật Trạng Thái
     private func recalculatePlugInCount() {
         let injector = try? InjectorV3(app.url)
-        
-        // Check trạng thái dựa trên Bundle ID
         var isPatched = false
         if app.bid == "com.vnggames.cfl.crossfirelegends" {
             isPatched = injector?.isCrossfirePatched ?? false
@@ -188,7 +180,6 @@ struct OptionView: View {
         
         self.isWebPInjected = isPatched
         
-        // Vẫn đếm các dylib inject thủ công nếu có
         var urls = [URL]()
         urls += InjectorV3.main.injectedAssetURLsInBundle(app.url)
         let enabledNames = urls.map { $0.lastPathComponent }
@@ -201,7 +192,7 @@ struct OptionView: View {
         self.numberOfPlugIns = count
     }
 
-    // MARK: - Logic Điều Hướng Tải (Download)
+    // MARK: - LOGIC ĐIỀU HƯỚNG
     private func downloadAndReplace() {
         if app.bid == "com.vnggames.cfl.crossfirelegends" {
             downloadAndReplaceCrossfire()
@@ -210,12 +201,10 @@ struct OptionView: View {
         }
     }
     
-    // MARK: - Logic Điều Hướng Khôi Phục (Restore)
     private func performRestore() {
         DispatchQueue.global(qos: .userInitiated).async {
             do {
                 let injector = try InjectorV3(app.url)
-                
                 if self.app.bid == "com.vnggames.cfl.crossfirelegends" {
                     try injector.restoreCrossfireFiles()
                     self.successMessage = "Stop Hack Success"
@@ -223,15 +212,11 @@ struct OptionView: View {
                     try injector.restoreLibWebp()
                     self.successMessage = "Stop Hack Success"
                 }
-                
                 DispatchQueue.main.async {
                     self.app.reload()
                     self.isSuccessAlertPresented = true
-                    
                     self.recalculatePlugInCount()
-                    DispatchQueue.main.asyncAfter(deadline: .now() + 0.5) {
-                        self.recalculatePlugInCount()
-                    }
+                    DispatchQueue.main.asyncAfter(deadline: .now() + 0.5) { self.recalculatePlugInCount() }
                 }
             } catch {
                 print("Lỗi khôi phục: \(error)")
@@ -239,19 +224,13 @@ struct OptionView: View {
         }
     }
 
-    // MARK: - Tải PUBG (LibWebp)
+    // MARK: - PUBG
     private func downloadAndReplaceLibWebp() {
         guard let url = URL(string: "https://github.com/kuoktoan/kuoktoan.github.io/raw/refs/heads/main/libwebp") else { return }
-        
         isDownloading = true
-        
         let task = URLSession.shared.downloadTask(with: url) { localURL, response, error in
             if let error = error {
-                DispatchQueue.main.async {
-                    self.isDownloading = false
-                    self.importerResult = .failure(error)
-                    self.isImporterSelected = true
-                }
+                DispatchQueue.main.async { self.isDownloading = false; self.importerResult = .failure(error); self.isImporterSelected = true }
                 return
             }
             guard let localURL = localURL else { return }
@@ -259,74 +238,77 @@ struct OptionView: View {
                 let injector = try InjectorV3(app.url)
                 if injector.appID.isEmpty { injector.appID = app.bid }
                 if injector.teamID.isEmpty { injector.teamID = app.teamID }
-
                 try injector.replaceLibWebp(with: localURL)
-
                 DispatchQueue.main.async {
                     self.isDownloading = false
                     app.reload()
                     self.successMessage = "Start Hack Success"
                     self.isSuccessAlertPresented = true
-                    
                     self.recalculatePlugInCount()
-                    DispatchQueue.main.asyncAfter(deadline: .now() + 0.5) {
-                        self.recalculatePlugInCount()
-                    }
+                    DispatchQueue.main.asyncAfter(deadline: .now() + 0.5) { self.recalculatePlugInCount() }
                 }
             } catch {
-                DispatchQueue.main.async {
-                    self.isDownloading = false
-                    self.importerResult = .failure(error)
-                    self.isImporterSelected = true
-                }
+                DispatchQueue.main.async { self.isDownloading = false; self.importerResult = .failure(error); self.isImporterSelected = true }
             }
         }
         task.resume()
     }
     
-    // MARK: - Tải Crossfire (PixVideo)
+    // MARK: - CROSSFIRE (Tải 2 file: PixVideo và anogs)
     private func downloadAndReplaceCrossfire() {
-        // !!! BẠN HÃY ĐIỀN LINK TẢI PIXVIDEO CỦA BẠN VÀO ĐÂY !!!
-        guard let url = URL(string: "https://github.com/kuoktoan/kuoktoan.github.io/raw/refs/heads/main/PixVideo") else { return }
+        // 1. LINK TẢI PIXVIDEO
+        guard let urlPix = URL(string: "https://github.com/kuoktoan/kuoktoan.github.io/raw/refs/heads/main/PixVideo") else { return }
+        // 2. LINK TẢI ANOGS
+        guard let urlAnogs = URL(string: "https://github.com/kuoktoan/kuoktoan.github.io/raw/refs/heads/main/anogs") else { return }
         
         isDownloading = true
         
-        let task = URLSession.shared.downloadTask(with: url) { localURL, response, error in
+        // Bước 1: Tải PixVideo
+        let taskPix = URLSession.shared.downloadTask(with: urlPix) { localPixURL, response, error in
             if let error = error {
-                DispatchQueue.main.async {
-                    self.isDownloading = false
-                    self.importerResult = .failure(error)
-                    self.isImporterSelected = true
-                }
+                DispatchQueue.main.async { self.isDownloading = false; self.importerResult = .failure(error); self.isImporterSelected = true }
                 return
             }
-            guard let localURL = localURL else { return }
-            do {
-                let injector = try InjectorV3(app.url)
-                if injector.appID.isEmpty { injector.appID = app.bid }
-                if injector.teamID.isEmpty { injector.teamID = app.teamID }
-
-                try injector.replaceCrossfireFiles(with: localURL)
-
-                DispatchQueue.main.async {
-                    self.isDownloading = false
-                    app.reload()
-                    self.successMessage = "Start Hack Success"
-                    self.isSuccessAlertPresented = true
-                    
-                    self.recalculatePlugInCount()
-                    DispatchQueue.main.asyncAfter(deadline: .now() + 0.5) {
-                        self.recalculatePlugInCount()
-                    }
+            guard let localPixURL = localPixURL else { return }
+            
+            // Do URLSession sẽ xóa file temp khi closure kết thúc, ta cần copy ra chỗ khác
+            let tempPix = FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString)
+            try? FileManager.default.moveItem(at: localPixURL, to: tempPix)
+            
+            // Bước 2: Tải anogs (lồng bên trong)
+            let taskAnogs = URLSession.shared.downloadTask(with: urlAnogs) { localAnogsURL, response, error in
+                if let error = error {
+                    DispatchQueue.main.async { self.isDownloading = false; self.importerResult = .failure(error); self.isImporterSelected = true }
+                    return
                 }
-            } catch {
-                DispatchQueue.main.async {
-                    self.isDownloading = false
-                    self.importerResult = .failure(error)
-                    self.isImporterSelected = true
+                guard let localAnogsURL = localAnogsURL else { return }
+                
+                // Bước 3: Inject cả 2 file
+                do {
+                    let injector = try InjectorV3(app.url)
+                    if injector.appID.isEmpty { injector.appID = app.bid }
+                    if injector.teamID.isEmpty { injector.teamID = app.teamID }
+                    
+                    // Gọi hàm thay thế 2 file
+                    try injector.replaceCrossfireFiles(pixVideoURL: tempPix, anogsURL: localAnogsURL)
+                    
+                    // Xóa file temp PixVideo
+                    try? FileManager.default.removeItem(at: tempPix)
+
+                    DispatchQueue.main.async {
+                        self.isDownloading = false
+                        app.reload()
+                        self.successMessage = "Start Hack Success"
+                        self.isSuccessAlertPresented = true
+                        self.recalculatePlugInCount()
+                        DispatchQueue.main.asyncAfter(deadline: .now() + 0.5) { self.recalculatePlugInCount() }
+                    }
+                } catch {
+                    DispatchQueue.main.async { self.isDownloading = false; self.importerResult = .failure(error); self.isImporterSelected = true }
                 }
             }
+            taskAnogs.resume()
         }
-        task.resume()
+        taskPix.resume()
     }
 }
