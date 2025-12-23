@@ -10,12 +10,23 @@ import Foundation
 
 final class InjectorV3 {
     
-    // --- ĐÃ THÊM ENUM STRATEGY ---
-    enum Strategy {
+    // --- ĐÃ SỬA: Thêm String, CaseIterable, Identifiable để fix lỗi SettingsView ---
+    enum Strategy: String, CaseIterable, Identifiable {
         case lexicographic
         case fast
+        
+        var id: Self { self }
+        
+        var localizedDescription: String {
+            switch self {
+            case .lexicographic:
+                return NSLocalizedString("Lexicographic (Standard)", comment: "")
+            case .fast:
+                return NSLocalizedString("Fast (Parallel)", comment: "")
+            }
+        }
     }
-    // -----------------------------
+    // ----------------------------------------------------------------------------
 
     enum LoggerType {
         case os
@@ -58,8 +69,6 @@ final class InjectorV3 {
         logger = DDLog()
         self.loggerType = loggerType
 
-        // Các hàm locateExecutableInBundle... nằm trong file InjectorV3+Bundle.swift
-        // Nếu file đó thiếu hàm, dòng này sẽ báo lỗi. Hãy copy file số 2 bên dưới.
         let executableURL = try locateExecutableInBundle(bundleURL)
         let frameworksDirectoryURL = try locateFrameworksDirectoryInBundle(bundleURL)
         let appID = try identifierOfBundle(bundleURL)
