@@ -7,54 +7,51 @@
 
 import Combine
 import SwiftUI
+import OrderedCollections // --- QUAN TRỌNG: Cần import cái này để dùng .elements
 
-// --- ĐỊNH NGHĨA CÁC ENUM BỊ THIẾU ---
 enum FilterOption {
     case all
     case user
     case system
 }
 
-// Model cho bộ lọc tìm kiếm
 struct FilterModel {
     var searchKeyword: String = ""
     var showPatchedOnly: Bool = false
     var isSearching: Bool { !searchKeyword.isEmpty }
 }
-// ------------------------------------
 
 final class AppListModel: ObservableObject {
     
-    // --- ĐỊNH NGHĨA SCOPE & CONSTANTS ---
+    // --- SỬA: Thêm case .troll ---
     enum Scope: String, CaseIterable {
         case all
         case user
         case system
+        case troll
     }
     
     static let allowedCharacters = "ABCDEFGHIJKLMNOPQRSTUVWXYZ#"
     private static let allowedCharacterSet = CharacterSet(charactersIn: allowedCharacters)
     
-    // Các Bundle ID cần loại bỏ (Fix lỗi excludedIdentifiers)
     static let excludedIdentifiers: Set<String> = [
         "com.apple.webapp",
         "com.82flex.TrollFools",
     ]
     
-    // Kiểm tra TrollStore (Fix lỗi hasTrollStore)
     static var hasTrollStore: Bool {
-        // Kiểm tra đơn giản đường dẫn TS
         return FileManager.default.fileExists(atPath: "/Applications/TrollStore.app") 
             || FileManager.default.fileExists(atPath: "/var/containers/Bundle/Application/TrollStore.app")
     }
 
-    // --- CÁC BIẾN PUBLISHED (QUAN TRỌNG CHO VIEW) ---
     @Published var applications: [App] = []
     @Published var filteredApplications: [App] = []
-    @Published var activeScopeApps: [String: [App]] = [:]
+    
+    // --- SỬA: Dùng OrderedDictionary để sửa lỗi .elements ở View ---
+    @Published var activeScopeApps: OrderedDictionary<String, [App]> = [:]
+    
     @Published var unsupportedCount: Int = 0
 
-    // Các biến trạng thái View đang thiếu
     @Published var filter = FilterModel() 
     @Published var filterOption: FilterOption = .all
     @Published var activeScope: Scope = .all
@@ -62,21 +59,17 @@ final class AppListModel: ObservableObject {
     @Published var selectorURL: URL? = nil
     @Published var isRebuildNeeded: Bool = false
 
-    // Kiểm tra Filza
     var isFilzaInstalled: Bool {
         return UIApplication.shared.canOpenURL(URL(string: "filza://")!)
     }
 
     private var cancellables = Set<AnyCancellable>()
 
-    // --- INIT ---
     init() {
-        // Init mặc định
         setupBindings()
         reload()
     }
     
-    // Init cho chế độ Selector (Fix lỗi InjectView)
     init(selectorURL: URL?) {
         self.isSelectorMode = true
         self.selectorURL = selectorURL
@@ -85,7 +78,6 @@ final class AppListModel: ObservableObject {
     }
     
     private func setupBindings() {
-        // Lắng nghe thay đổi từ filter và scope để lọc danh sách
         $filter.map { $0.searchKeyword }
             .combineLatest($applications, $activeScope, $filter.map { $0.showPatchedOnly })
             .debounce(for: .seconds(0.3), scheduler: DispatchQueue.main)
@@ -115,24 +107,24 @@ final class AppListModel: ObservableObject {
         UIApplication.shared.open(filzaURL)
     }
 
-    // --- LOGIC LỌC ỨNG DỤNG ---
     private func filterApplications(keyword: String, applications: [App], scope: Scope, showPatchedOnly: Bool) {
         let filtered = applications.filter { app in
-            // 1. Lọc theo từ khóa
             let matchesKeyword = keyword.isEmpty ||
                 app.name.localizedCaseInsensitiveContains(keyword) ||
                 app.bid.localizedCaseInsensitiveContains(keyword)
             
-            // 2. Lọc theo Scope (User/System)
             let matchesScope: Bool
             switch scope {
             case .all: matchesScope = true
             case .user: matchesScope = app.type == "User"
             case .system: matchesScope = app.type == "System"
+            case .troll: matchesScope = app.type == "Troll" // Hoặc logic riêng cho TrollStore app
             }
             
-            // 3. Lọc theo Patched (Đã inject hay chưa)
-            let matchesPatched = !showPatchedOnly || (InjectorV3(try! InjectorV3(app.url).bundleURL).hasInjectedAsset)
+            // --- SỬA LỖI TRY TẠI ĐÂY ---
+            // Dùng try? và kiểm tra optional thay vì gọi lồng nhau gây lỗi
+            let isInjected = (try? InjectorV3(app.url))?.hasInjectedAsset ?? false
+            let matchesPatched = !showPatchedOnly || isInjected
 
             return matchesKeyword && matchesScope && matchesPatched
         }
@@ -146,7 +138,6 @@ final class AppListModel: ObservableObject {
         }
     }
 
-    // --- LOGIC GỐC + PUBG/CROSSFIRE ---
     private static func fetchApplications(_ unsupportedCount: inout Int) -> [App] {
         let allApps: [App] = LSApplicationWorkspace.default()
             .allApplications()
@@ -156,28 +147,16 @@ final class AppListModel: ObservableObject {
                       let teamID = proxy.teamID(),
                       let appType = proxy.applicationType(),
                       let localizedName = proxy.localizedName()
-                else {
-                    return nil
-                }
+                else { return nil }
 
-                // --- 1. LOGIC CROSSFIRE & PUBG ---
                 let isPubg = localizedName.localizedCaseInsensitiveContains("PUBG MOBILE")
                 let isCrossfire = id == "com.vnggames.cfl.crossfirelegends" || localizedName.localizedCaseInsensitiveContains("Crossfire")
 
-                guard isPubg || isCrossfire else {
-                    return nil
-                }
-                // ---------------------------------
+                guard isPubg || isCrossfire else { return nil }
 
-                // Filter blacklist
-                guard !id.hasPrefix("wiki.qaq.") && !id.hasPrefix("com.82flex.") && !id.hasPrefix("ch.xxtou.") else {
-                    return nil
-                }
-                guard !Self.excludedIdentifiers.contains(id) else {
-                    return nil
-                }
+                guard !id.hasPrefix("wiki.qaq.") && !id.hasPrefix("com.82flex.") && !id.hasPrefix("ch.xxtou.") else { return nil }
+                guard !Self.excludedIdentifiers.contains(id) else { return nil }
 
-                // --- 2. LOGIC ĐỔI TÊN ---
                 var finalName = localizedName
                 if isPubg {
                     let lowerId = id.lowercased()
@@ -213,9 +192,9 @@ final class AppListModel: ObservableObject {
         return filteredApps
     }
 
-    // --- HÀM HELPER GROUP LIST ---
-    static func groupedAppList(_ applications: [App]) -> [String: [App]] {
-        var groupedApps: [String: [App]] = [:]
+    // --- SỬA: Trả về OrderedDictionary ---
+    static func groupedAppList(_ applications: [App]) -> OrderedDictionary<String, [App]> {
+        var groupedApps: OrderedDictionary<String, [App]> = [:]
         for char in allowedCharacters {
             groupedApps[String(char)] = []
         }
@@ -233,7 +212,6 @@ final class AppListModel: ObservableObject {
             }
         }
 
-        // Xóa key rỗng
         for (key, value) in groupedApps {
             if value.isEmpty {
                 groupedApps.removeValue(forKey: key)
