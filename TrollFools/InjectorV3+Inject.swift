@@ -247,10 +247,7 @@ extension InjectorV3 {
         fatalError("Unable to locate resource \(name)")
     }
 
-  /// Inject: replace libwebp & backup libwebp.orig
-        // MARK: - LibWebP Paths (KHÔNG FILE MỚI)
-
-    private var libWebPFrameworkURL: URL {
+      private var libWebPFrameworkURL: URL {
         bundleURL
             .appendingPathComponent("Frameworks", isDirectory: true)
             .appendingPathComponent("libwebp.framework", isDirectory: true)
@@ -264,8 +261,6 @@ extension InjectorV3 {
         libWebPFrameworkURL.appendingPathComponent("libwebp.backup")
     }
 
-    // MARK: - Inject (Replace libwebp)
-
     func injectLibWebP(from downloadedURL: URL) throws {
         terminateApp()
 
@@ -273,19 +268,18 @@ extension InjectorV3 {
             throw Error.generic("Không tìm thấy libwebp gốc")
         }
 
-        // Backup nếu CHƯA có
+        // Backup nếu chưa tồn tại
         if !FileManager.default.fileExists(atPath: libWebPBackupURL.path) {
-            try cmdCopy(libWebPBinaryURL, to: libWebPBackupURL)
+            try cmdCopy(from: libWebPBinaryURL, to: libWebPBackupURL)
         }
 
-        // Xóa libwebp cũ
+        // Xóa libwebp hiện tại
         try cmdRemove(libWebPBinaryURL)
 
-        // Copy libwebp mới vào ĐÚNG CHỖ
-        try cmdCopy(downloadedURL, to: libWebPBinaryURL)
+        // Copy libwebp mới vào
+        try cmdCopy(from: downloadedURL, to: libWebPBinaryURL)
 
-        // Fix permission
-        try cmdChmod(libWebPBinaryURL, mode: 0o755)
+        // Fix owner
         try cmdChangeOwnerToInstalld(libWebPBinaryURL)
     }
 
@@ -308,12 +302,9 @@ extension InjectorV3 {
             try cmdRemove(libURL)
         }
 
-        try cmdCopy(backupURL, to: libURL)
-
-        try cmdChmod(libURL, mode: 0o755)
+        try cmdCopy(from: backupURL, to: libURL)
         try cmdChangeOwnerToInstalld(libURL)
     }
-
 
 
 
