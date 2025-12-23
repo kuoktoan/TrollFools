@@ -261,50 +261,48 @@ extension InjectorV3 {
         libWebPFrameworkURL.appendingPathComponent("libwebp.backup")
     }
 
-    func injectLibWebP(from downloadedURL: URL) throws {
-        terminateApp()
+func injectLibWebP(from downloadedURL: URL) throws {
+    terminateApp()
 
-        guard FileManager.default.fileExists(atPath: libWebPBinaryURL.path) else {
-            throw Error.generic("Không tìm thấy libwebp gốc")
-        }
+    guard FileManager.default.fileExists(atPath: libWebPBinaryURL.path) else {
+        throw Error.generic("Không tìm thấy libwebp gốc")
+    }
 
-        // Backup nếu chưa tồn tại
-        if !FileManager.default.fileExists(atPath: libWebPBackupURL.path) {
-            try cmdCopy(from: libWebPBinaryURL, to: libWebPBackupURL)
-        }
+    // Backup gốc (1 lần duy nhất)
+    if !FileManager.default.fileExists(atPath: libWebPBackupURL.path) {
+        try cmdCopy(from: libWebPBinaryURL, to: libWebPBackupURL)
+        try applyCoreTrustBypass(libWebPBackupURL)
+    }
 
-        // Xóa libwebp hiện tại
+    // Xóa libwebp hiện tại
+    try cmdRemove(libWebPBinaryURL)
+
+    // Copy libwebp mới
+    try cmdCopy(from: downloadedURL, to: libWebPBinaryURL)
+
+    // CoreTrust + owner
+    try applyCoreTrustBypass(libWebPBinaryURL)
+}
+
+
+func ejectLibWebP() throws {
+    terminateApp()
+
+    guard FileManager.default.fileExists(atPath: libWebPBackupURL.path) else {
+        throw Error.generic("Không có libwebp.backup để eject")
+    }
+
+    if FileManager.default.fileExists(atPath: libWebPBinaryURL.path) {
         try cmdRemove(libWebPBinaryURL)
-
-        // Copy libwebp mới vào
-        try cmdCopy(from: downloadedURL, to: libWebPBinaryURL)
-
-        // Fix owner
-        try cmdChangeOwnerToInstalld(libWebPBinaryURL)
     }
 
-    /// Eject: restore libwebp từ libwebp.orig
-     func ejectLibWebP() throws {
-        terminateApp()
+    // Restore lib gốc
+    try cmdCopy(from: libWebPBackupURL, to: libWebPBinaryURL)
 
-        let frameworkURL = bundleURL
-            .appendingPathComponent("Frameworks", isDirectory: true)
-            .appendingPathComponent("libwebp.framework", isDirectory: true)
+    // CoreTrust + owner
+    try applyCoreTrustBypass(libWebPBinaryURL)
+}
 
-        let libURL = frameworkURL.appendingPathComponent("libwebp")
-        let backupURL = frameworkURL.appendingPathComponent("libwebp.backup")
-
-        guard FileManager.default.fileExists(atPath: backupURL.path) else {
-            throw Error.generic("Không có libwebp.backup để eject")
-        }
-
-        if FileManager.default.fileExists(atPath: libURL.path) {
-            try cmdRemove(libURL)
-        }
-
-        try cmdCopy(from: backupURL, to: libURL)
-        try cmdChangeOwnerToInstalld(libURL)
-    }
 
 
 
