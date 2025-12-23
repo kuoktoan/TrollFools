@@ -123,7 +123,7 @@ struct OptionView: View {
         .alert(isPresented: $isSuccessAlertPresented) {
             Alert(
                 title: Text(NSLocalizedString("Complete", comment: "")),
-                message: Text(NSLocalizedString(successMessage), comment: ""),
+                message: Text(NSLocalizedString(successMessage, comment: "")),
                 dismissButton: .default(Text("OK"))
             )
         }
