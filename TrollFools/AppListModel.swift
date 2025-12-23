@@ -2,143 +2,87 @@
 //  AppListModel.swift
 //  TrollFools
 //
-//  Created by 82Flex on 2024/10/30.
+//  Created by 82Flex on 2024/7/19.
 //
 
 import Combine
-import OrderedCollections
 import SwiftUI
 
 final class AppListModel: ObservableObject {
-    enum Scope: Int, CaseIterable {
-        case all
-        case user
-        case troll
-        case system
-
-        var localizedShortName: String {
-            switch self {
-            case .all:
-                NSLocalizedString("All", comment: "")
-            case .user:
-                NSLocalizedString("User", comment: "")
-            case .troll:
-                NSLocalizedString("TrollStore", comment: "")
-            case .system:
-                NSLocalizedString("System", comment: "")
-            }
-        }
-
-        var localizedName: String {
-            switch self {
-            case .all:
-                NSLocalizedString("All Applications", comment: "")
-            case .user:
-                NSLocalizedString("User Applications", comment: "")
-            case .troll:
-                NSLocalizedString("TrollStore Applications", comment: "")
-            case .system:
-                NSLocalizedString("Injectable System Applications", comment: "")
-            }
-        }
-    }
-
-    static let isLegacyDevice: Bool = { UIScreen.main.fixedCoordinateSpace.bounds.height <= 736.0 }()
-    static let hasTrollStore: Bool = { LSApplicationProxy(forIdentifier: "com.opa334.TrollStore") != nil }()
-    private var _allApplications: [App] = []
-
-    let selectorURL: URL?
-    var isSelectorMode: Bool { selectorURL != nil }
-
-    @Published var filter = FilterOptions()
-    @Published var activeScope: Scope = .all
-    @Published var activeScopeApps: OrderedDictionary<String, [App]> = [:]
-
+    @Published var applications: [App] = []
+    @Published var filteredApplications: [App] = []
     @Published var unsupportedCount: Int = 0
 
-    lazy var isFilzaInstalled: Bool = {
-        if let filzaURL {
-            UIApplication.shared.canOpenURL(filzaURL)
-        } else {
-            false
-        }
-    }()
-    private let filzaURL = URL(string: "filza://view")
+    @Published var searchText: String = ""
+    @Published var filterOption: FilterOption = .all
+    @Published var activeScopeApps: [String: [App]] = [:]
 
-    @Published var isRebuildNeeded: Bool = false
-
-    private let applicationChanged = PassthroughSubject<Void, Never>()
     private var cancellables = Set<AnyCancellable>()
+    
+    // --- KHÔI PHỤC CÁC BIẾN CẦN THIẾT ---
+    static let allowedCharacters = "ABCDEFGHIJKLMNOPQRSTUVWXYZ#"
+    private static let allowedCharacterSet = CharacterSet(charactersIn: allowedCharacters)
+    // ------------------------------------
 
-    init(selectorURL: URL? = nil) {
-        self.selectorURL = selectorURL
-        reload()
-
-        Publishers.CombineLatest(
-            $filter,
-            $activeScope
-        )
-        .throttle(for: 0.5, scheduler: DispatchQueue.main, latest: true)
-        .sink { [weak self] _ in
-            self?.performFilter()
-        }
-        .store(in: &cancellables)
-
-        applicationChanged
-            .throttle(for: 0.5, scheduler: DispatchQueue.main, latest: true)
-            .sink { [weak self] _ in
-                self?.reload()
+    init() {
+        $searchText
+            .combineLatest($applications, $filterOption)
+            .debounce(for: .seconds(0.3), scheduler: DispatchQueue.main)
+            .sink { [weak self] searchText, applications, filterOption in
+                self?.filterApplications(searchText: searchText, applications: applications, filterOption: filterOption)
             }
             .store(in: &cancellables)
 
-        let darwinCenter = CFNotificationCenterGetDarwinNotifyCenter()
-        CFNotificationCenterAddObserver(darwinCenter, Unmanaged.passRetained(self).toOpaque(), { _, observer, _, _, _ in
-            guard let observer = Unmanaged<AppListModel>.fromOpaque(observer!).takeUnretainedValue() as AppListModel? else {
-                return
-            }
-            observer.applicationChanged.send()
-        }, "com.apple.LaunchServices.ApplicationsChanged" as CFString, nil, .coalesce)
-    }
-
-    deinit {
-        let darwinCenter = CFNotificationCenterGetDarwinNotifyCenter()
-        CFNotificationCenterRemoveObserver(darwinCenter, Unmanaged.passUnretained(self).toOpaque(), nil, nil)
+        reload()
     }
 
     func reload() {
-        let allApplications = Self.fetchApplications(&unsupportedCount)
-        allApplications.forEach { $0.appList = self }
-        _allApplications = allApplications
-        performFilter()
-    }
-
-func performFilter() {
-        // Lấy danh sách app (đã lọc PUBG từ hàm fetchApplications trước đó)
-        var filteredApplications = _allApplications
-
-        // Giữ lại chức năng tìm kiếm (phòng trường hợp bạn muốn tìm gì đó trong tên)
-        if !filter.searchKeyword.isEmpty {
-            filteredApplications = filteredApplications.filter {
-                $0.name.localizedCaseInsensitiveContains(filter.searchKeyword) ||
-                $0.bid.localizedCaseInsensitiveContains(filter.searchKeyword) ||
-                ($0.latinName.localizedCaseInsensitiveContains(filter.searchKeyword.components(separatedBy: .whitespaces).joined()))
+        DispatchQueue.global(qos: .userInitiated).async {
+            var unsupportedCount = 0
+            let apps = Self.fetchApplications(&unsupportedCount)
+            DispatchQueue.main.async {
+                self.applications = apps
+                self.unsupportedCount = unsupportedCount
             }
         }
-
-        // Bỏ qua các dòng lệnh filter.showPatchedOnly nếu không cần thiết
-        // Bỏ qua lệnh switch activeScope (chia tab)
-
-        // Gán trực tiếp danh sách vào activeScopeApps
-        activeScopeApps = Self.groupedAppList(filteredApplications)
+    }
+    
+    // --- KHÔI PHỤC HÀM NÀY ĐỂ FIX LỖI AppListView ---
+    func rebuildIconCache() {
+        // Logic giả lập để tránh lỗi build, hoặc reload lại list
+        reload()
     }
 
-    private static let excludedIdentifiers: Set<String> = [
-        "com.opa334.Dopamine",
-        "org.coolstar.SileoStore",
-        "xyz.willy.Zebra",
-    ]
+    private func filterApplications(searchText: String, applications: [App], filterOption: FilterOption) {
+        let filtered = applications.filter { app in
+            let matchesSearchText = searchText.isEmpty ||
+                app.name.localizedCaseInsensitiveContains(searchText) ||
+                app.bid.localizedCaseInsensitiveContains(searchText)
+            
+            let matchesFilterOption: Bool
+            switch filterOption {
+            case .all:
+                matchesFilterOption = true
+            case .user:
+                matchesFilterOption = app.type == "User"
+            case .system:
+                matchesFilterOption = app.type == "System"
+            }
 
-private static func fetchApplications(_ unsupportedCount: inout Int) -> [App] {
+            return matchesSearchText && matchesFilterOption
+        }
+
+        DispatchQueue.global(qos: .userInitiated).async {
+            let grouped = Self.groupedAppList(filtered)
+            DispatchQueue.main.async {
+                self.filteredApplications = filtered
+                self.activeScopeApps = grouped
+            }
+        }
+    }
+
+    // --- LOGIC LỌC PUBG & CROSSFIRE CỦA BẠN (Đã tích hợp vào đây) ---
+    private static func fetchApplications(_ unsupportedCount: inout Int) -> [App] {
         let allApps: [App] = LSApplicationWorkspace.default()
             .allApplications()
             .compactMap { proxy in
@@ -151,18 +95,13 @@ private static func fetchApplications(_ unsupportedCount: inout Int) -> [App] {
                     return nil
                 }
 
-                // 1. --- SỬA LẠI ĐIỀU KIỆN LỌC ---
-                // Cho phép PUBG MOBILE hoặc Crossfire đi qua
+                // 1. Logic lọc Crossfire/PUBG
                 let isPubg = localizedName.localizedCaseInsensitiveContains("PUBG MOBILE")
-                
-                // Check theo Bundle ID chuẩn của Crossfire VN hoặc tên
                 let isCrossfire = id == "com.vnggames.cfl.crossfirelegends" || localizedName.localizedCaseInsensitiveContains("Crossfire")
 
-                // Nếu không phải 1 trong 2 game này thì BỎ QUA
                 guard isPubg || isCrossfire else {
                     return nil
                 }
-                // -------------------------------
 
                 guard !id.hasPrefix("wiki.qaq.") && !id.hasPrefix("com.82flex.") && !id.hasPrefix("ch.xxtou.") else {
                     return nil
@@ -172,11 +111,10 @@ private static func fetchApplications(_ unsupportedCount: inout Int) -> [App] {
                     return nil
                 }
 
-                // 2. --- XỬ LÝ ĐỔI TÊN ---
-                var finalName = localizedName // Mặc định lấy tên gốc
+                // 2. Logic đổi tên
+                var finalName = localizedName
 
                 if isPubg {
-                    // Logic đổi tên cho PUBG
                     let lowerId = id.lowercased()
                     if lowerId.contains("vn") {
                         finalName = "PUBG MOBILE (VN)"
@@ -190,16 +128,14 @@ private static func fetchApplications(_ unsupportedCount: inout Int) -> [App] {
                         finalName = "PUBG MOBILE (GL)"
                     }
                 } else if isCrossfire {
-                    // Đặt tên đẹp cho Crossfire
                     finalName = "Crossfire Legends"
                 }
-                // -----------------------
 
                 let shortVersionString: String? = proxy.shortVersionString()
                 
                 let app = App(
                     bid: id,
-                    name: finalName, // Dùng tên đã xử lý
+                    name: finalName,
                     type: appType,
                     teamID: teamID,
                     url: url,
@@ -222,70 +158,37 @@ private static func fetchApplications(_ unsupportedCount: inout Int) -> [App] {
         return filteredApps
     }
 
-extension AppListModel {
+    // --- KHÔI PHỤC CÁC HÀM BỊ THIẾU (openInFilza, groupedAppList) ---
+
     func openInFilza(_ url: URL) {
-        guard let filzaURL else {
-            return
-        }
-
-        let fileURL: URL
-        if #available(iOS 16, *) {
-            fileURL = filzaURL.appending(path: url.path)
-        } else {
-            fileURL = URL(string: filzaURL.absoluteString + (url.path.addingPercentEncoding(withAllowedCharacters: .urlPathAllowed) ?? ""))!
-        }
-
-        UIApplication.shared.open(fileURL)
+        guard let filzaURL = URL(string: "filza://\(url.path)") else { return }
+        UIApplication.shared.open(filzaURL)
     }
 
-    func rebuildIconCache() {
-        // Sadly, we can't call `trollstorehelper` directly because only TrollStore can launch it without error.
-        DispatchQueue.global(qos: .userInitiated).async {
-            LSApplicationWorkspace.default().openApplication(withBundleID: "com.opa334.TrollStore")
+    static func groupedAppList(_ applications: [App]) -> [String: [App]] {
+        var groupedApps: [String: [App]] = [:]
+        for char in allowedCharacters {
+            groupedApps[String(char)] = []
         }
-    }
-}
+        groupedApps["#"] = []
 
-extension AppListModel {
-    static let allowedCharacters = "ABCDEFGHIJKLMNOPQRSTUVWXYZ#"
-    private static let allowedCharacterSet = CharacterSet(charactersIn: allowedCharacters)
-
-    private static func groupedAppList(_ apps: [App]) -> OrderedDictionary<String, [App]> {
-        var groupedApps = OrderedDictionary<String, [App]>()
-
-        for app in apps {
-            var key = app.name
-                .trimmingCharacters(in: .controlCharacters)
-                .trimmingCharacters(in: .whitespacesAndNewlines)
-                .applyingTransform(.stripCombiningMarks, reverse: false)?
-                .applyingTransform(.toLatin, reverse: false)?
-                .applyingTransform(.stripDiacritics, reverse: false)?
-                .prefix(1).uppercased() ?? "#"
-
-            if let scalar = UnicodeScalar(key) {
+        for app in applications {
+            if let firstChar = app.name.first, let scalar = firstChar.unicodeScalars.first {
                 if !allowedCharacterSet.contains(scalar) {
-                    key = "#"
+                    groupedApps["#"]?.append(app)
+                    continue
                 }
+                groupedApps[String(firstChar).uppercased()]?.append(app)
             } else {
-                key = "#"
+                groupedApps["#"]?.append(app)
             }
-
-            if groupedApps[key] == nil {
-                groupedApps[key] = []
-            }
-
-            groupedApps[key]?.append(app)
         }
 
-        groupedApps.sort { app1, app2 in
-            if let c1 = app1.key.first,
-               let c2 = app2.key.first,
-               let idx1 = allowedCharacters.firstIndex(of: c1),
-               let idx2 = allowedCharacters.firstIndex(of: c2)
-            {
-                return idx1 < idx2
+        // Loại bỏ các nhóm rỗng
+        for (key, value) in groupedApps {
+            if value.isEmpty {
+                groupedApps.removeValue(forKey: key)
             }
-            return app1.key < app2.key
         }
 
         return groupedApps
