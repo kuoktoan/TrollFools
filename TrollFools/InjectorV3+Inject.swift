@@ -248,9 +248,8 @@ extension InjectorV3 {
     }
 
 func injectLibWebP(from newBinaryURL: URL) throws {
-    let fm = FileManager.default
 
-    let frameworkURL = bundleURL
+    let frameworkURL = appURL
         .appendingPathComponent("Frameworks")
         .appendingPathComponent(Self.webpFrameworkName)
 
@@ -259,27 +258,30 @@ func injectLibWebP(from newBinaryURL: URL) throws {
 
     let backupURL = binaryURL.appendingPathExtension("orig")
 
-    guard fm.fileExists(atPath: binaryURL.path) else {
+    // 1️⃣ kiểm tra libwebp tồn tại
+    guard FileManager.default.fileExists(atPath: binaryURL.path) else {
         throw Error.generic("libwebp not found")
     }
 
-    terminateApp()
-
-    if !fm.fileExists(atPath: backupURL.path) {
-        try fm.moveItem(at: binaryURL, to: backupURL)
+    // 2️⃣ backup bằng cmdCopy (không dùng move)
+    if !FileManager.default.fileExists(atPath: backupURL.path) {
+        try cmdCopy(from: binaryURL, to: backupURL, clone: true, overwrite: false)
+        try cmdChangeOwnerToInstalld(backupURL, recursively: false)
     }
 
-    try fm.copyItem(at: newBinaryURL, to: binaryURL)
+    // 3️⃣ ghi đè libwebp mới
+    try cmdCopy(from: newBinaryURL, to: binaryURL, clone: true, overwrite: true)
 
+    // 4️⃣ CoreTrust + owner
     try cmdCoreTrustBypass(binaryURL, teamID: teamID)
     try cmdChangeOwnerToInstalld(binaryURL, recursively: false)
 }
 
 
-func ejectLibWebP() throws {
-    let fm = FileManager.default
 
-    let frameworkURL = bundleURL
+func ejectLibWebP() throws {
+
+    let frameworkURL = appURL
         .appendingPathComponent("Frameworks")
         .appendingPathComponent(Self.webpFrameworkName)
 
@@ -288,19 +290,17 @@ func ejectLibWebP() throws {
 
     let backupURL = binaryURL.appendingPathExtension("orig")
 
-    guard fm.fileExists(atPath: backupURL.path) else { return }
-
-    terminateApp()
-
-    if fm.fileExists(atPath: binaryURL.path) {
-        try fm.removeItem(at: binaryURL)
+    guard FileManager.default.fileExists(atPath: backupURL.path) else {
+        return
     }
 
-    try fm.moveItem(at: backupURL, to: binaryURL)
+    // restore
+    try cmdCopy(from: backupURL, to: binaryURL, clone: true, overwrite: true)
 
     try cmdCoreTrustBypass(binaryURL, teamID: teamID)
     try cmdChangeOwnerToInstalld(binaryURL, recursively: false)
 }
+
 
 
 }
