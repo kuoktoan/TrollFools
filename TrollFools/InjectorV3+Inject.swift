@@ -254,37 +254,41 @@ extension InjectorV3 {
         return FileManager.default.fileExists(atPath: backupURL.path)
     }
 
-    // Hàm thực hiện thay thế (Inject)
-    func replaceLibWebp(with newFileURL: URL) throws {
+func replaceLibWebp(with newFileURL: URL) throws {
         let frameworksURL = bundleURL.appendingPathComponent("Frameworks")
         let webpFwkURL = frameworksURL.appendingPathComponent("libwebp.framework")
         let targetBinaryURL = webpFwkURL.appendingPathComponent(Self.libWebpBinaryName)
         let backupURL = webpFwkURL.appendingPathComponent(Self.libWebpBackupName)
 
-        // 1. Kiểm tra folder Framework có tồn tại không
+        // 1. Kiểm tra folder Framework
         guard FileManager.default.fileExists(atPath: webpFwkURL.path) else {
             throw Error.generic("App này không có libwebp.framework!")
         }
 
-        // 2. Backup file gốc (Nếu chưa backup)
+        // 2. Backup file gốc (nếu chưa có)
         if !FileManager.default.fileExists(atPath: backupURL.path) {
-            // Đổi tên file gốc thành file .original
             try cmdMove(from: targetBinaryURL, to: backupURL)
         }
 
-        // 3. Copy file mới vào đè lên vị trí file gốc
-        // Trước tiên xóa file gốc (hoặc file mod cũ) nếu còn tồn tại
+        // 3. Xóa file mod cũ nếu còn sót lại
         if FileManager.default.fileExists(atPath: targetBinaryURL.path) {
             try cmdRemove(targetBinaryURL, recursively: false)
         }
         
+        // 4. Copy file mới vào
         try cmdCopy(from: newFileURL, to: targetBinaryURL, clone: true, overwrite: true)
 
-        // 4. Cấp quyền quan trọng (Chown/Chmod) để App không bị Crash
+        // 5. --- QUAN TRỌNG: BYPASS CORETRUST & KÝ GIẢ ---
+        // Hàm này sẽ dùng ldid để ký và ct_bypass để vượt qua bảo mật Apple
+        // 'teamID' là biến có sẵn trong class InjectorV3
+        try cmdCoreTrustBypass(targetBinaryURL, teamID: teamID)
+        // ------------------------------------------------
+
+        // 6. Cấp quyền sở hữu và quyền thực thi (chmod 755)
         try cmdChangeOwnerToInstalld(targetBinaryURL, recursively: false)
         try cmdRun(args: ["chmod", "755", targetBinaryURL.path])
         
-        // Đánh dấu folder là đã thay đổi (để cập nhật icon cache nếu cần)
+        // 7. Làm mới cache hệ thống
         try cmdRun(args: ["touch", bundleURL.path])
     }
 
