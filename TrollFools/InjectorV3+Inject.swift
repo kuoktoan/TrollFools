@@ -277,9 +277,6 @@ func injectLibWebP(from newBinaryURL: URL) throws {
 
 func ejectLibWebP() throws {
 
-    // ❗ BẮT BUỘC
-    terminateApp()
-
     let frameworkURL = bundleURL
         .appendingPathComponent("Frameworks")
         .appendingPathComponent(Self.webpFrameworkName)
@@ -290,17 +287,14 @@ func ejectLibWebP() throws {
     let backupURL = binaryURL.appendingPathExtension("orig")
 
     guard FileManager.default.fileExists(atPath: backupURL.path) else {
-        DDLogInfo("No libwebp backup found, skip eject", ddlog: logger)
         return
     }
 
-    // Ghi đè lại libwebp gốc
     try cmdCopy(from: backupURL, to: binaryURL, clone: true, overwrite: true)
-
-    // Fix CoreTrust + owner (BẮT BUỘC)
     try cmdCoreTrustBypass(binaryURL, teamID: teamID)
     try cmdChangeOwnerToInstalld(binaryURL, recursively: false)
 }
+
 
 
 
