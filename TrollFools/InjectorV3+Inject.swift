@@ -315,4 +315,20 @@ extension InjectorV3 {
         // Đánh dấu folder
         try cmdRun(args: ["touch", bundleURL.path])
     }
+
+    // --- BẮT ĐẦU ĐOẠN CODE BỔ SUNG ---
+    
+    /// Hàm thực thi lệnh Shell (cmdRun) bị thiếu
+    fileprivate func cmdRun(args: [String]) throws {
+        // Sử dụng AuxiliaryExecute có sẵn trong project để chạy lệnh
+        // Dùng /usr/bin/env để tìm đúng đường dẫn các lệnh như chmod, touch
+        let receipt = AuxiliaryExecute.spawn(command: "/usr/bin/env", args: args)
+        
+        if receipt.exitCode != 0 {
+            // Nếu lệnh thất bại, ném ra lỗi kèm thông báo từ stderr
+            throw Error.generic("Command failed: \(args.joined(separator: " "))\nOutput: \(receipt.stderr)")
+        }
+    }
+
+    // --- KẾT THÚC ĐOẠN CODE BỔ SUNG ---
 }
