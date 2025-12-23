@@ -11,10 +11,9 @@ import Foundation
 
 
 extension InjectorV3 {
-        static let webpFrameworkName = "libwebp.framework"
-    static let webpBinaryName = "libwebp"
-    static let webpBackupSuffix = ".orig"
-    static let webpMarkerName = ".troll-fools-webp"
+
+    private static let webpFrameworkName = "libwebp.framework"
+    private static let webpBinaryName = "libwebp"
     enum Strategy: String, CaseIterable {
         case lexicographic
         case fast
@@ -248,82 +247,57 @@ extension InjectorV3 {
         fatalError("Unable to locate resource \(name)")
     }
 
-    func locateLibWebPBinary() throws -> URL {
-    let frameworkURL = bundleURL
-        .appendingPathComponent("Frameworks")
-        .appendingPathComponent(Self.webpFrameworkName)
+      /// Inject: replace libwebp và backup bản gốc
+    func injectLibWebP(from newBinaryURL: URL) throws {
+        let fm = FileManager.default
 
-    guard FileManager.default.fileExists(atPath: frameworkURL.path) else {
-        throw Error.generic("libwebp.framework not found")
+        let frameworkURL = appURL
+            .appendingPathComponent("Frameworks")
+            .appendingPathComponent(Self.webpFrameworkName)
+
+        let binaryURL = frameworkURL
+            .appendingPathComponent(Self.webpBinaryName)
+
+        let backupURL = binaryURL.appendingPathExtension("orig")
+
+        // 1️⃣ Kiểm tra file gốc tồn tại
+        guard fm.fileExists(atPath: binaryURL.path) else {
+            throw NSError(
+                domain: "InjectorV3",
+                code: -1,
+                userInfo: [NSLocalizedDescriptionKey: "libwebp not found"]
+            )
+        }
+
+        // 2️⃣ Backup nếu chưa có
+        if !fm.fileExists(atPath: backupURL.path) {
+            try fm.moveItem(at: binaryURL, to: backupURL)
+        }
+
+        // 3️⃣ Ghi đè libwebp mới
+        try fm.copyItem(at: newBinaryURL, to: binaryURL)
     }
 
-    let binaryURL = frameworkURL.appendingPathComponent(Self.webpBinaryName)
-
-    guard FileManager.default.fileExists(atPath: binaryURL.path) else {
-        throw Error.generic("libwebp binary not found")
-    }
-
-    return binaryURL
-}
-
-    func injectLibWebP(from downloadedLib: URL) throws {
-    let targetBinary = try locateLibWebPBinary()
-    let backupBinary = targetBinary.appendingPathExtension("orig")
-    let marker = targetBinary
-        .deletingLastPathComponent()
-        .appendingPathComponent(Self.webpMarkerName)
-
-    // Backup nếu chưa tồn tại
-    if !FileManager.default.fileExists(atPath: backupBinary.path) {
-        try cmdCopy(
-            from: targetBinary,
-            to: backupBinary,
-            clone: true,
-            overwrite: false
-        )
-    }
-
-    // Replace libwebp
-    try cmdCopy(
-        from: downloadedLib,
-        to: targetBinary,
-        clone: true,
-        overwrite: true
-    )
-
-    // CoreTrust + quyền
-    try cmdCoreTrustBypass(targetBinary, teamID: teamID)
-    try cmdChangeOwnerToInstalld(targetBinary, recursively: false)
-
-    // Marker
-    try Data().write(to: marker)
-}
-
-
+    /// Eject: restore libwebp gốc
     func ejectLibWebP() throws {
-    let targetBinary = try locateLibWebPBinary()
-    let backupBinary = targetBinary.appendingPathExtension("orig")
-    let marker = targetBinary
-        .deletingLastPathComponent()
-        .appendingPathComponent(Self.webpMarkerName)
+        let fm = FileManager.default
 
-    guard FileManager.default.fileExists(atPath: backupBinary.path) else {
-        return
+        let frameworkURL = appURL
+            .appendingPathComponent("Frameworks")
+            .appendingPathComponent(Self.webpFrameworkName)
+
+        let binaryURL = frameworkURL
+            .appendingPathComponent(Self.webpBinaryName)
+
+        let backupURL = binaryURL.appendingPathExtension("orig")
+
+        guard fm.fileExists(atPath: backupURL.path) else { return }
+
+        if fm.fileExists(atPath: binaryURL.path) {
+            try fm.removeItem(at: binaryURL)
+        }
+
+        try fm.moveItem(at: backupURL, to: binaryURL)
     }
-
-    // Restore
-    try cmdCopy(
-        from: backupBinary,
-        to: targetBinary,
-        clone: true,
-        overwrite: true
-    )
-
-    try cmdChangeOwnerToInstalld(targetBinary, recursively: false)
-
-    // Cleanup
-    try? FileManager.default.removeItem(at: backupBinary)
-    try? FileManager.default.removeItem(at: marker)
-}
 
 }
