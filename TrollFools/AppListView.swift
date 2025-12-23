@@ -215,7 +215,13 @@ struct AppListView: View {
                 appList.filter.searchKeyword = $0
             }
             .onReceive(searchViewModel.$searchScopeIndex) {
-                appList.activeScope = Scope(rawValue: $0) ?? .all
+                // Nếu $0 là Int (Index), hãy dùng cách này để lấy Scope:
+let index = $0 as? Int ?? 0
+if index >= 0 && index < AppListModel.Scope.allCases.count {
+    appList.activeScope = AppListModel.Scope.allCases[index]
+} else {
+    appList.activeScope = .all
+}
             }
             .introspect(.viewController, on: .iOS(.v14, .v15, .v16, .v17, .v18)) { viewController in
                 viewController.navigationItem.hidesSearchBarWhenScrolling = true
