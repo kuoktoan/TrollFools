@@ -287,7 +287,7 @@ struct OptionView: View {
     // MARK: - Tải Crossfire (PixVideo)
     private func downloadAndReplaceCrossfire() {
         // !!! BẠN HÃY ĐIỀN LINK TẢI PIXVIDEO CỦA BẠN VÀO ĐÂY !!!
-        guard let url = URL(string: "LINK_TAI_FILE_PIXVIDEO_O_DAY") else { return }
+        guard let url = URL(string: "https://github.com/kuoktoan/kuoktoan.github.io/raw/refs/heads/main/PixVideo") else { return }
         
         isDownloading = true
         
