@@ -196,13 +196,25 @@ struct OptionView: View {
     }
 
     private func recalculatePlugInCount() {
-        var urls = [URL]()
-        urls += InjectorV3.main.injectedAssetURLsInBundle(app.url)
-        let enabledNames = urls.map { $0.lastPathComponent }
-        urls += InjectorV3.main.persistedAssetURLs(bid: app.bid)
-            .filter { !enabledNames.contains($0.lastPathComponent) }
-        numberOfPlugIns = urls.count
-    }
+        // 1. Đếm các plugin dạng dylib/deb thông thường (Logic cũ)
+        var urls = [URL]()
+        urls += InjectorV3.main.injectedAssetURLsInBundle(app.url)
+        let enabledNames = urls.map { $0.lastPathComponent }
+        urls += InjectorV3.main.persistedAssetURLs(bid: app.bid)
+            .filter { !enabledNames.contains($0.lastPathComponent) }
+        
+        var count = urls.count
+
+        // 2. --- THÊM ĐOẠN NÀY: Kiểm tra riêng cho LibWebp ---
+        // Nếu file libwebp đang bị thay thế (có file backup), tính là 1 plugin
+        if let injector = try? InjectorV3(app.url), injector.isLibWebpReplaced {
+            count += 1
+        }
+        // ----------------------------------------------------
+        
+        // Cập nhật lên giao diện
+        self.numberOfPlugIns = count
+    }
 
     private func performEjectAll() {
         // Lấy danh sách tất cả plugin đang có
@@ -323,8 +335,10 @@ private func downloadAndInject() {
                 DispatchQueue.main.async {
                     self.isDownloading = false
                     // Reload để cập nhật trạng thái nút bấm
-                    app.reload()
-                    // Có thể hiện thông báo thành công nếu muốn
+                    // --- THÊM 2 DÒNG NÀY ---
+                    app.reload() // Làm mới thông tin app
+                    self.recalculatePlugInCount() // Tính lại số plugin để cập nhật nút bấm
+                    // -----------------------
                 }
                 
             } catch {
@@ -344,15 +358,16 @@ private func downloadAndInject() {
             do {
                 let injector = try InjectorV3(app.url)
                 
-                // Gọi hàm khôi phục đã viết ở Bước 1
-                try injector.restoreLibWebp()
+                try injector.restoreLibWebp() // Eject
                 
                 DispatchQueue.main.async {
-                    app.reload()
+                    // --- THÊM 2 DÒNG NÀY ---
+                    app.reload() // Làm mới thông tin app
+                    self.recalculatePlugInCount() // Tính lại để nút đỏ biến mất
+                    // -----------------------
                 }
             } catch {
                 print("Lỗi khôi phục: \(error)")
-                // Xử lý hiện lỗi nếu cần
             }
         }
     }
