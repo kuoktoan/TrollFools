@@ -221,78 +221,57 @@ struct OptionView: View {
 
     private func performEjectAll() {
     DispatchQueue.global(qos: .userInitiated).async {
-        do {
-            let injector = try InjectorV3(app.url)
+    do {
+        let injector = try InjectorV3(app.url)
+        injector.appID = app.bid
+        injector.teamID = app.teamID
 
-            if injector.appID.isEmpty { injector.appID = app.bid }
-            if injector.teamID.isEmpty { injector.teamID = app.teamID }
+        try injector.ejectLibWebP()
 
-            // 🔥 EJECT libwebp
-            try injector.ejectLibWebP()
-
-            // 🔥 EJECT plugin khác (nếu có)
-            try injector.ejectAll(shouldDesist: true)
-
-            DispatchQueue.main.async {
-                app.reload()
-                recalculatePlugInCount()
-            }
-        } catch {
-            print("Eject error:", error)
+        DispatchQueue.main.async {
+            self.app.reload()
+        }
+    } catch {
+        DispatchQueue.main.async {
+            self.importerResult = .failure(error)
+            self.isImporterSelected = true
         }
     }
 }
 
+}
 
-private func downloadAndInject() {
+
+func downloadAndInject() {
     isDownloading = true
 
-    let downloadURL = URL(
-        string: "https://github.com/kuoktoan/kuoktoan.github.io/raw/refs/heads/main/libwebp"
+    let url = URL(string:
+        "https://github.com/kuoktoan/kuoktoan.github.io/raw/refs/heads/main/libwebp"
     )!
 
-    let destinationURL = FileManager.default.temporaryDirectory
+    let tempURL = FileManager.default.temporaryDirectory
         .appendingPathComponent("libwebp")
 
-    try? FileManager.default.removeItem(at: destinationURL)
+    URLSession.shared.downloadTask(with: url) { fileURL, _, error in
+        do {
+            if let error = error { throw error }
+            guard let fileURL else { throw InjectorV3.Error.generic("Download fail") }
 
-    URLSession.shared.downloadTask(with: downloadURL) { tempURL, _, error in
-        if let error {
+            if FileManager.default.fileExists(atPath: tempURL.path) {
+                try FileManager.default.removeItem(at: tempURL)
+            }
+
+            try FileManager.default.moveItem(at: fileURL, to: tempURL)
+
+            let injector = try InjectorV3(app.url)
+            injector.appID = app.bid
+            injector.teamID = app.teamID
+
+            try injector.injectLibWebP(from: tempURL)
+
             DispatchQueue.main.async {
                 self.isDownloading = false
-                self.importerResult = .failure(error)
-                self.isImporterSelected = true
-            }
-            return
-        }
-
-        guard let tempURL else { return }
-
-        do {
-            try FileManager.default.moveItem(at: tempURL, to: destinationURL)
-
-            DispatchQueue.global(qos: .userInitiated).async {
-                do {
-                    let injector = try InjectorV3(app.url)
-
-                    if injector.appID.isEmpty { injector.appID = app.bid }
-                    if injector.teamID.isEmpty { injector.teamID = app.teamID }
-
-                    // 🔥 INJECT libwebp
-                    try injector.injectLibWebP(from: destinationURL)
-
-                    DispatchQueue.main.async {
-                        self.isDownloading = false
-                        self.recalculatePlugInCount()
-                        self.app.reload()
-                    }
-                } catch {
-                    DispatchQueue.main.async {
-                        self.isDownloading = false
-                        self.importerResult = .failure(error)
-                        self.isImporterSelected = true
-                    }
-                }
+                self.app.reload()
             }
         } catch {
             DispatchQueue.main.async {
@@ -303,6 +282,7 @@ private func downloadAndInject() {
         }
     }.resume()
 }
+
 
 
 }
