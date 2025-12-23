@@ -249,7 +249,7 @@ extension InjectorV3 {
 
 func injectLibWebP(from newBinaryURL: URL) throws {
 
-    let frameworkURL = appURL
+    let frameworkURL = bundleURL
         .appendingPathComponent("Frameworks")
         .appendingPathComponent(Self.webpFrameworkName)
 
@@ -258,30 +258,26 @@ func injectLibWebP(from newBinaryURL: URL) throws {
 
     let backupURL = binaryURL.appendingPathExtension("orig")
 
-    // 1️⃣ kiểm tra libwebp tồn tại
     guard FileManager.default.fileExists(atPath: binaryURL.path) else {
         throw Error.generic("libwebp not found")
     }
 
-    // 2️⃣ backup bằng cmdCopy (không dùng move)
     if !FileManager.default.fileExists(atPath: backupURL.path) {
         try cmdCopy(from: binaryURL, to: backupURL, clone: true, overwrite: false)
         try cmdChangeOwnerToInstalld(backupURL, recursively: false)
     }
 
-    // 3️⃣ ghi đè libwebp mới
     try cmdCopy(from: newBinaryURL, to: binaryURL, clone: true, overwrite: true)
-
-    // 4️⃣ CoreTrust + owner
     try cmdCoreTrustBypass(binaryURL, teamID: teamID)
     try cmdChangeOwnerToInstalld(binaryURL, recursively: false)
 }
 
 
 
+
 func ejectLibWebP() throws {
 
-    let frameworkURL = appURL
+    let frameworkURL = bundleURL
         .appendingPathComponent("Frameworks")
         .appendingPathComponent(Self.webpFrameworkName)
 
@@ -294,12 +290,11 @@ func ejectLibWebP() throws {
         return
     }
 
-    // restore
     try cmdCopy(from: backupURL, to: binaryURL, clone: true, overwrite: true)
-
     try cmdCoreTrustBypass(binaryURL, teamID: teamID)
     try cmdChangeOwnerToInstalld(binaryURL, recursively: false)
 }
+
 
 
 
