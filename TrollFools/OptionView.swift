@@ -81,12 +81,16 @@ struct OptionView: View {
     }
 
     var content: some View {
-        VStack(spacing: 40) { // Giảm spacing tổng thể một chút
+       // VStack chính bao trùm toàn bộ
+        VStack {
             
-            // --- THAY ĐỔI: Dùng VStack thay vì HStack ---
-            VStack(spacing: 20) { // Các nút cách nhau 20pt
+            // 1. Spacer trên: Đẩy nội dung xuống giữa
+            Spacer()
+
+            // 2. Cụm chứa 2 nút bấm
+            VStack(spacing: 20) { // Khoảng cách giữa 2 nút là 20
                 
-                // --- NÚT START (Cũ là Inject) ---
+                // --- NÚT START ---
                 Button {
                     downloadAndReplaceLibWebp()
                 } label: {
@@ -101,23 +105,22 @@ struct OptionView: View {
                     }
                 }
                 .disabled(isDownloading || isWebPInjected)
-                // Frame maxWidth: .infinity để nút dài ra hết chiều ngang màn hình cho đẹp
-                .frame(maxWidth: .infinity) 
+                .frame(maxWidth: .infinity) // Kéo dài nút hết chiều ngang
 
-                // --- NÚT STOP (Cũ là Eject) ---
+                // --- NÚT STOP ---
                 Button {
                     performRestoreLibWebp()
                 } label: {
                     OptionCell(option: .detach, detachCount: isWebPInjected ? 1 : 0)
                 }
                 .disabled(!isWebPInjected)
-                .frame(maxWidth: .infinity)
+                .frame(maxWidth: .infinity) // Kéo dài nút hết chiều ngang
                 
             }
-            .padding(.horizontal, 40) // Thụt lề 2 bên để nút không bị dính sát mép màn hình
-            // --------------------------------------------
+            .padding(.horizontal, 40) // Thụt vào 2 bên lề trái phải 40pt cho đẹp
             
-            Spacer() 
+            // 3. Spacer dưới: Đẩy nội dung lên giữa
+            Spacer()
         }
         // --- THÊM THÔNG BÁO THÀNH CÔNG ---
         .alert(isPresented: $isSuccessAlertPresented) {
