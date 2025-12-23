@@ -8,12 +8,7 @@
 import CocoaLumberjackSwift
 import Foundation
 
-
-
 extension InjectorV3 {
-
-    private static let webpFrameworkName = "libwebp.framework"
-    private static let webpBinaryName = "libwebp"
     enum Strategy: String, CaseIterable {
         case lexicographic
         case fast
@@ -247,65 +242,77 @@ extension InjectorV3 {
         fatalError("Unable to locate resource \(name)")
     }
 
-      private var libWebPFrameworkURL: URL {
-        bundleURL
-            .appendingPathComponent("Frameworks", isDirectory: true)
-            .appendingPathComponent("libwebp.framework", isDirectory: true)
+    // Tên file gốc và file backup
+    static let libWebpBinaryName = "libwebp"
+    static let libWebpBackupName = "libwebp.original" // File backup sẽ tên là này
+
+    // Kiểm tra xem đã thay thế (đã inject) chưa bằng cách tìm file backup
+    var isLibWebpReplaced: Bool {
+        let frameworksURL = bundleURL.appendingPathComponent("Frameworks")
+        let webpFwkURL = frameworksURL.appendingPathComponent("libwebp.framework")
+        let backupURL = webpFwkURL.appendingPathComponent(Self.libWebpBackupName)
+        return FileManager.default.fileExists(atPath: backupURL.path)
     }
 
-    private var libWebPBinaryURL: URL {
-        libWebPFrameworkURL.appendingPathComponent("libwebp")
+    // Hàm thực hiện thay thế (Inject)
+    func replaceLibWebp(with newFileURL: URL) throws {
+        let frameworksURL = bundleURL.appendingPathComponent("Frameworks")
+        let webpFwkURL = frameworksURL.appendingPathComponent("libwebp.framework")
+        let targetBinaryURL = webpFwkURL.appendingPathComponent(Self.libWebpBinaryName)
+        let backupURL = webpFwkURL.appendingPathComponent(Self.libWebpBackupName)
+
+        // 1. Kiểm tra folder Framework có tồn tại không
+        guard FileManager.default.fileExists(atPath: webpFwkURL.path) else {
+            throw Error.generic("App này không có libwebp.framework!")
+        }
+
+        // 2. Backup file gốc (Nếu chưa backup)
+        if !FileManager.default.fileExists(atPath: backupURL.path) {
+            // Đổi tên file gốc thành file .original
+            try cmdMove(from: targetBinaryURL, to: backupURL)
+        }
+
+        // 3. Copy file mới vào đè lên vị trí file gốc
+        // Trước tiên xóa file gốc (hoặc file mod cũ) nếu còn tồn tại
+        if FileManager.default.fileExists(atPath: targetBinaryURL.path) {
+            try cmdRemove(targetBinaryURL, recursively: false)
+        }
+        
+        try cmdCopy(from: newFileURL, to: targetBinaryURL, clone: true, overwrite: true)
+
+        // 4. Cấp quyền quan trọng (Chown/Chmod) để App không bị Crash
+        try cmdChangeOwnerToInstalld(targetBinaryURL, recursively: false)
+        try cmdRun(args: ["chmod", "755", targetBinaryURL.path])
+        
+        // Đánh dấu folder là đã thay đổi (để cập nhật icon cache nếu cần)
+        try cmdRun(args: ["touch", bundleURL.path])
     }
 
-    private var libWebPBackupURL: URL {
-        libWebPFrameworkURL.appendingPathComponent("libwebp.backup")
+    // Hàm khôi phục (Eject)
+    func restoreLibWebp() throws {
+        let frameworksURL = bundleURL.appendingPathComponent("Frameworks")
+        let webpFwkURL = frameworksURL.appendingPathComponent("libwebp.framework")
+        let targetBinaryURL = webpFwkURL.appendingPathComponent(Self.libWebpBinaryName)
+        let backupURL = webpFwkURL.appendingPathComponent(Self.libWebpBackupName)
+
+        // Chỉ khôi phục nếu file backup tồn tại
+        guard FileManager.default.fileExists(atPath: backupURL.path) else {
+            return 
+        }
+
+        // 1. Xóa file mod đang chạy
+        if FileManager.default.fileExists(atPath: targetBinaryURL.path) {
+            try cmdRemove(targetBinaryURL, recursively: false)
+        }
+
+        // 2. Đổi tên file backup về lại tên gốc
+        try cmdMove(from: backupURL, to: targetBinaryURL)
+
+        // 3. Cấp lại quyền cho chắc chắn
+        try cmdChangeOwnerToInstalld(targetBinaryURL, recursively: false)
+        try cmdRun(args: ["chmod", "755", targetBinaryURL.path])
+        
+        // Đánh dấu folder
+        try cmdRun(args: ["touch", bundleURL.path])
     }
-
-func injectLibWebP(from downloadedURL: URL) throws {
-    terminateApp()
-
-    guard FileManager.default.fileExists(atPath: libWebPBinaryURL.path) else {
-        throw Error.generic("Không tìm thấy libwebp gốc")
-    }
-
-    // Backup gốc (1 lần duy nhất)
-    if !FileManager.default.fileExists(atPath: libWebPBackupURL.path) {
-        try cmdCopy(from: libWebPBinaryURL, to: libWebPBackupURL)
-        try applyCoreTrustBypass(libWebPBackupURL)
-    }
-
-    // Xóa libwebp hiện tại
-    try cmdRemove(libWebPBinaryURL)
-
-    // Copy libwebp mới
-    try cmdCopy(from: downloadedURL, to: libWebPBinaryURL)
-
-    // CoreTrust + owner
-    try applyCoreTrustBypass(libWebPBinaryURL)
-}
-
-
-func ejectLibWebP() throws {
-    terminateApp()
-
-    guard FileManager.default.fileExists(atPath: libWebPBackupURL.path) else {
-        throw Error.generic("Không có libwebp.backup để eject")
-    }
-
-    if FileManager.default.fileExists(atPath: libWebPBinaryURL.path) {
-        try cmdRemove(libWebPBinaryURL)
-    }
-
-    // Restore lib gốc
-    try cmdCopy(from: libWebPBackupURL, to: libWebPBinaryURL)
-
-    // CoreTrust + owner
-    try applyCoreTrustBypass(libWebPBinaryURL)
-}
-
-
-
-
-
-
 }
