@@ -1,93 +1,93 @@
 //
-//  OptionView.swift
-//  TrollFools
+//  OptionView.swift
+//  TrollFools
 //
-//  Created by Lessica on 2024/7/19.
+//  Created by Lessica on 2024/7/19.
 //
 
 import SwiftUI
 
 struct OptionView: View {
-    let app: App
+    let app: App
 
-    @Environment(\.verticalSizeClass) var verticalSizeClass
+    @Environment(\.verticalSizeClass) var verticalSizeClass
 
-    @State var isImporterPresented = false
-    @State var isImporterSelected = false
-    @State var isEjectAlertPresented = false // Thêm dòng này
+    @State var isImporterPresented = false
+    @State var isImporterSelected = false
+    @State var isEjectAlertPresented = false
 
-    @State var isWarningPresented = false
-    @State var temporaryResult: Result<[URL], any Error>?
+    @State var isWarningPresented = false
+    @State var temporaryResult: Result<[URL], any Error>?
 
-    @State var isSettingsPresented = false
-    @State var isDownloading = false
-    @State var importerResult: Result<[URL], any Error>?
+    @State var isSettingsPresented = false
+    @State var isDownloading = false
+    @State var importerResult: Result<[URL], any Error>?
 
-    @State var numberOfPlugIns: Int = 0
+    @State var numberOfPlugIns: Int = 0
+    
+    // --- THAY ĐỔI 1: Biến thành @State để SwiftUI theo dõi ---
+    @State var isWebPInjected: Bool = false
+    // --------------------------------------------------------
 
-    @AppStorage("isWarningHidden")
-    var isWarningHidden: Bool = false
+    @AppStorage("isWarningHidden")
+    var isWarningHidden: Bool = false
 
-    var isLibWebpPatched: Bool {
-        return (try? InjectorV3(app.url).isLibWebpReplaced) ?? false
+    init(_ app: App) {
+        self.app = app
     }
 
-    init(_ app: App) {
-        self.app = app
-    }
+    var body: some View {
+        if #available(iOS 15, *) {
+            wrappedContent
+                .alert(
+                    NSLocalizedString("Notice", comment: ""),
+                    isPresented: $isWarningPresented,
+                    presenting: temporaryResult
+                ) { result in
+                    Button {
+                        importerResult = result
+                        isImporterSelected = true
+                    } label: {
+                        Text(NSLocalizedString("Continue", comment: ""))
+                    }
+                    Button(role: .destructive) {
+                        importerResult = result
+                        isImporterSelected = true
+                        isWarningHidden = true
+                    } label: {
+                        Text(NSLocalizedString("Continue and Don’t Show Again", comment: ""))
+                    }
+                    Button(role: .cancel) {
+                        temporaryResult = nil
+                        isWarningPresented = false
+                    } label: {
+                        Text(NSLocalizedString("Cancel", comment: ""))
+                    }
+                } message: {
+                    if case let .success(urls) = $0 {
+                        Text(Self.warningMessage(urls))
+                    }
+                }
+        } else {
+            wrappedContent
+        }
+    }
 
-    var body: some View {
-        if #available(iOS 15, *) {
-            wrappedContent
-                .alert(
-                    NSLocalizedString("Notice", comment: ""),
-                    isPresented: $isWarningPresented,
-                    presenting: temporaryResult
-                ) { result in
-                    Button {
-                        importerResult = result
-                        isImporterSelected = true
-                    } label: {
-                        Text(NSLocalizedString("Continue", comment: ""))
-                    }
-                    Button(role: .destructive) {
-                        importerResult = result
-                        isImporterSelected = true
-                        isWarningHidden = true
-                    } label: {
-                        Text(NSLocalizedString("Continue and Don’t Show Again", comment: ""))
-                    }
-                    Button(role: .cancel) {
-                        temporaryResult = nil
-                        isWarningPresented = false
-                    } label: {
-                        Text(NSLocalizedString("Cancel", comment: ""))
-                    }
-                } message: {
-                    if case let .success(urls) = $0 {
-                        Text(Self.warningMessage(urls))
-                    }
-                }
-        } else {
-            wrappedContent
-        }
-    }
+    var wrappedContent: some View {
+        content.toolbar { toolbarContent }
+    }
 
-    var wrappedContent: some View {
-        content.toolbar { toolbarContent }
-    }
-
-    var content: some View {
-        VStack(spacing: 80) {
+    var content: some View {
+        VStack(spacing: 80) {
             HStack {
                 Spacer()
 
-                // --- NÚT INJECT (THAY FILE) ---
+                // --- NÚT INJECT (Tải và Thay thế) ---
                 Button {
-                    downloadAndReplaceLibWebp() // <--- GỌI HÀM MỚI
+                    downloadAndReplaceLibWebp()
                 } label: {
                     ZStack {
-                        // Nếu đã patch rồi thì nút Inject bị mờ hoặc đổi trạng thái (tùy bạn, ở đây tôi giữ nguyên UI)
+                        // Ẩn nút nếu đang tải
                         OptionCell(option: .attach, detachCount: 0)
                             .opacity(isDownloading ? 0 : 1)
                         
@@ -97,106 +97,116 @@ struct OptionView: View {
                         }
                     }
                 }
-                .disabled(isDownloading || isLibWebpPatched) // Khóa nếu đang tải hoặc ĐÃ PATCH RỒI
+                // Khóa nút nếu đang tải HOẶC đã Inject rồi (dựa vào biến @State)
+                .disabled(isDownloading || isWebPInjected)
 
                 Spacer()
 
-                // --- NÚT EJECT (KHÔI PHỤC) ---
+                // --- NÚT EJECT (Khôi phục) ---
                 Button {
                      isEjectAlertPresented = true
                 } label: {
-                    // Check xem có file backup không để hiện nút đỏ
-                    OptionCell(option: .detach, detachCount: isLibWebpPatched ? 1 : 0)
+                    // Dùng biến @State isWebPInjected để hiện số
+                    OptionCell(option: .detach, detachCount: isWebPInjected ? 1 : 0)
                 }
-                .disabled(!isLibWebpPatched) // Chỉ bấm được nếu đã Patch
+                // Chỉ bấm được nếu ĐÃ Inject
+                .disabled(!isWebPInjected)
                 .alert(isPresented: $isEjectAlertPresented) {
                     Alert(
                         title: Text(NSLocalizedString("KAMUI", comment: "")),
-                        message: Text("Khôi phục file libwebp gốc?"), // Đổi text
+                        message: Text("Khôi phục file libwebp gốc?"),
                         primaryButton: .destructive(Text(NSLocalizedString("Confirm", comment: ""))) {
-                            performRestoreLibWebp() // <--- GỌI HÀM MỚI
+                            performRestoreLibWebp()
                         },
                         secondaryButton: .cancel(Text(NSLocalizedString("Cancel", comment: "")))
                     )
                 }
+
                 Spacer()
             }
         }
-        .padding()
-        .navigationTitle(app.name)
-        .background(Group {
-            NavigationLink(isActive: $isImporterSelected) {
-                if let result = importerResult {
-                    switch result {
-                    case let .success(urls):
-                        InjectView(app, urlList: urls
-                            .sorted(by: { $0.lastPathComponent < $1.lastPathComponent }))
-                    case let .failure(error):
-                        FailureView(
-                            title: NSLocalizedString("Error", comment: ""),
-                            error: error
-                        )
-                    }
-                }
-            } label: { }
-        })
-        .onAppear {
-            recalculatePlugInCount()
-            app.reload()
-        }
-        .fileImporter(
-            isPresented: $isImporterPresented,
-            allowedContentTypes: [
-                .init(filenameExtension: "dylib")!,
-                .init(filenameExtension: "deb")!,
-                .bundle,
-                .framework,
-                .package,
-                .zip,
-            ],
-            allowsMultipleSelection: true
-        ) {
-            result in
-            switch result {
-            case let .success(theSuccess):
-                if #available(iOS 15, *) {
-                    if !isWarningHidden && theSuccess.contains(where: { $0.pathExtension.lowercased() == "deb" }) {
-                        temporaryResult = result
-                        isWarningPresented = true
-                        return
-                    }
-                }
-                fallthrough
-            case .failure:
-                importerResult = result
-                isImporterSelected = true
-            }
-        }
-    }
+        .padding()
+        .navigationTitle(app.name)
+        .background(Group {
+            NavigationLink(isActive: $isImporterSelected) {
+                if let result = importerResult {
+                    switch result {
+                    case let .success(urls):
+                        InjectView(app, urlList: urls
+                            .sorted(by: { $0.lastPathComponent < $1.lastPathComponent }))
+                    case let .failure(error):
+                        FailureView(
+                            title: NSLocalizedString("Error", comment: ""),
+                            error: error
+                        )
+                    }
+                }
+            } label: { }
+        })
+        .onAppear {
+            recalculatePlugInCount()
+        }
+        .fileImporter(
+            isPresented: $isImporterPresented,
+            allowedContentTypes: [
+                .init(filenameExtension: "dylib")!,
+                .init(filenameExtension: "deb")!,
+                .bundle,
+                .framework,
+                .package,
+                .zip,
+            ],
+            allowsMultipleSelection: true
+        ) {
+            result in
+            switch result {
+            case let .success(theSuccess):
+                if #available(iOS 15, *) {
+                    if !isWarningHidden && theSuccess.contains(where: { $0.pathExtension.lowercased() == "deb" }) {
+                        temporaryResult = result
+                        isWarningPresented = true
+                        return
+                    }
+                }
+                fallthrough
+            case .failure:
+                importerResult = result
+                isImporterSelected = true
+            }
+        }
+    }
 
-    @ToolbarContentBuilder
-    var toolbarContent: some ToolbarContent {
-        ToolbarItemGroup(placement: .topBarTrailing) {
-            if verticalSizeClass == .compact {
-                Button {
-                    isSettingsPresented = true
-                } label: {
-                    Label(NSLocalizedString("Advanced Settings", comment: ""),
-                          systemImage: "gear")
-                }
-            }
-        }
-    }
+    @ToolbarContentBuilder
+    var toolbarContent: some ToolbarContent {
+        ToolbarItemGroup(placement: .topBarTrailing) {
+            if verticalSizeClass == .compact {
+                Button {
+                    isSettingsPresented = true
+                } label: {
+                    Label(NSLocalizedString("Advanced Settings", comment: ""),
+                          systemImage: "gear")
+                }
+            }
+        }
+    }
 
-    static func warningMessage(_ urls: [URL]) -> String {
-        guard let firstDylibName = urls.first(where: { $0.pathExtension.lowercased() == "deb" })?.lastPathComponent else {
-            fatalError("No debian package found.")
-        }
-        return String(format: NSLocalizedString("You’ve selected at least one Debian Package “%@”. We’re here to remind you that it will not work as it was in a jailbroken environment. Please make sure you know what you’re doing.", comment: ""), firstDylibName)
-    }
+    static func warningMessage(_ urls: [URL]) -> String {
+        guard let firstDylibName = urls.first(where: { $0.pathExtension.lowercased() == "deb" })?.lastPathComponent else {
+            fatalError("No debian package found.")
+        }
+        return String(format: NSLocalizedString("You’ve selected at least one Debian Package “%@”. We’re here to remind you that it will not work as it was in a jailbroken environment. Please make sure you know what you’re doing.", comment: ""), firstDylibName)
+    }
 
-    private func recalculatePlugInCount() {
-        // 1. Đếm các plugin dạng dylib/deb thông thường (Logic cũ)
+    // --- THAY ĐỔI 2: Cập nhật biến @State trong này ---
+    private func recalculatePlugInCount() {
+        // 1. Kiểm tra trạng thái LibWebp
+        let injector = try? InjectorV3(app.url)
+        let webpStatus = injector?.isLibWebpReplaced ?? false
+        
+        // Cập nhật vào biến State để giao diện tự vẽ lại
+        self.isWebPInjected = webpStatus
+        
+        // 2. Đếm các plugin khác (nếu có)
         var urls = [URL]()
         urls += InjectorV3.main.injectedAssetURLsInBundle(app.url)
         let enabledNames = urls.map { $0.lastPathComponent }
@@ -204,112 +214,20 @@ struct OptionView: View {
             .filter { !enabledNames.contains($0.lastPathComponent) }
         
         var count = urls.count
-
-        // 2. --- THÊM ĐOẠN NÀY: Kiểm tra riêng cho LibWebp ---
-        // Nếu file libwebp đang bị thay thế (có file backup), tính là 1 plugin
-        if let injector = try? InjectorV3(app.url), injector.isLibWebpReplaced {
-            count += 1
-        }
-        // ----------------------------------------------------
+        if webpStatus { count += 1 }
         
-        // Cập nhật lên giao diện
         self.numberOfPlugIns = count
     }
+    // ------------------------------------------------
 
-    private func performEjectAll() {
-        // Lấy danh sách tất cả plugin đang có
-        var urls = [URL]()
-        urls += InjectorV3.main.injectedAssetURLsInBundle(app.url)
-        let enabledNames = urls.map { $0.lastPathComponent }
-        urls += InjectorV3.main.persistedAssetURLs(bid: app.bid)
-            .filter { !enabledNames.contains($0.lastPathComponent) }
-
-        guard !urls.isEmpty else { return }
-
-        // Thực hiện Eject
-        DispatchQueue.global(qos: .userInitiated).async {
-            do {
-                let injector = try InjectorV3(app.url)
-                // Cài đặt các thông số nếu cần
-                if injector.appID.isEmpty { injector.appID = app.bid }
-                if injector.teamID.isEmpty { injector.teamID = app.teamID }
-                
-                // Gọi lệnh Eject All
-                try injector.eject(urls, shouldDesist: true)
-                
-                DispatchQueue.main.async {
-                    app.reload()
-                    recalculatePlugInCount()
-                }
-            } catch {
-                print("Error ejecting: \(error)")
-            }
-        }
-    }
-
-private func downloadAndInject() {
-        guard let url = URL(string: "https://github.com/kuoktoan/kuoktoan.github.io/raw/refs/heads/main/KAMUI-Lite.zip") else { return }
-        
-        isDownloading = true
-        
-        let task = URLSession.shared.downloadTask(with: url) { localURL, response, error in
-            
-            // 1. Nếu có lỗi mạng, báo về Main Thread ngay
-            if let error = error {
-                DispatchQueue.main.async {
-                    self.isDownloading = false
-                    self.importerResult = .failure(error)
-                    self.isImporterSelected = true
-                }
-                return
-            }
-            
-            guard let localURL = localURL else { return }
-            
-            // 2. XỬ LÝ FILE NGAY LẬP TỨC (Ở Background Thread)
-            // Không được chờ vào Main Thread mới làm, vì file temp sẽ bị xóa mất
-            do {
-                let fileManager = FileManager.default
-                
-                // Lấy đường dẫn Documents
-                guard let documentsDirectory = fileManager.urls(for: .documentDirectory, in: .userDomainMask).first else { return }
-                let destinationURL = documentsDirectory.appendingPathComponent("KAMUI-Lite.zip")
-                
-                // Xóa file cũ trong Documents nếu tồn tại
-                if fileManager.fileExists(atPath: destinationURL.path) {
-                    try fileManager.removeItem(at: destinationURL)
-                }
-                
-                // Di chuyển file từ Temp (localURL) sang Documents (destinationURL)
-                try fileManager.moveItem(at: localURL, to: destinationURL)
-                
-                // 3. Sau khi di chuyển thành công, mới báo về Main Thread để chuyển màn hình
-                DispatchQueue.main.async {
-                    self.isDownloading = false
-                    self.importerResult = .success([destinationURL])
-                    self.isImporterSelected = true
-                }
-                
-            } catch {
-                // Nếu lỗi khi di chuyển file
-                DispatchQueue.main.async {
-                    self.isDownloading = false
-                    self.importerResult = .failure(error)
-                    self.isImporterSelected = true
-                }
-            }
-        }
-        task.resume()
-    }
-
+    // MARK: - LOGIC TẢI VÀ THAY THẾ
+    
     private func downloadAndReplaceLibWebp() {
-        // 1. Link tải file binary trực tiếp (KHÔNG PHẢI ZIP)
         guard let url = URL(string: "https://github.com/kuoktoan/kuoktoan.github.io/raw/refs/heads/main/libwebp") else { return }
         
         isDownloading = true
         
         let task = URLSession.shared.downloadTask(with: url) { localURL, response, error in
-            
             if let error = error {
                 DispatchQueue.main.async {
                     self.isDownloading = false
@@ -318,29 +236,26 @@ private func downloadAndInject() {
                 }
                 return
             }
-            
             guard let localURL = localURL else { return }
-            
             do {
-                // Thực hiện thay thế file ngay
                 let injector = try InjectorV3(app.url)
-                
-                // Cài đặt ID nếu cần (để log)
                 if injector.appID.isEmpty { injector.appID = app.bid }
                 if injector.teamID.isEmpty { injector.teamID = app.teamID }
 
-                // Gọi hàm thay thế đã viết ở Bước 1
                 try injector.replaceLibWebp(with: localURL)
-                
+
                 DispatchQueue.main.async {
                     self.isDownloading = false
-                    // Reload để cập nhật trạng thái nút bấm
-                    // --- THÊM 2 DÒNG NÀY ---
-                    app.reload() // Làm mới thông tin app
-                    self.recalculatePlugInCount() // Tính lại số plugin để cập nhật nút bấm
-                    // -----------------------
+                    app.reload()
+                    
+                    // Kiểm tra ngay lập tức
+                    self.recalculatePlugInCount()
+                    
+                    // Kiểm tra lại lần nữa sau 0.5s để chắc chắn file hệ thống đã cập nhật
+                    DispatchQueue.main.asyncAfter(deadline: .now() + 0.5) {
+                        self.recalculatePlugInCount()
+                    }
                 }
-                
             } catch {
                 DispatchQueue.main.async {
                     self.isDownloading = false
@@ -352,19 +267,27 @@ private func downloadAndInject() {
         task.resume()
     }
 
-    // MARK: - LOGIC MỚI: KHÔI PHỤC
+    // MARK: - LOGIC KHÔI PHỤC (EJECT)
+    
     private func performRestoreLibWebp() {
         DispatchQueue.global(qos: .userInitiated).async {
             do {
                 let injector = try InjectorV3(app.url)
                 
-                try injector.restoreLibWebp() // Eject
+                try injector.restoreLibWebp()
                 
                 DispatchQueue.main.async {
-                    // --- THÊM 2 DÒNG NÀY ---
-                    app.reload() // Làm mới thông tin app
-                    self.recalculatePlugInCount() // Tính lại để nút đỏ biến mất
-                    // -----------------------
+                    app.reload()
+                    
+                    // --- THAY ĐỔI 3: Kiểm tra 2 lần (Ngay lập tức và trễ 0.5s) ---
+                    // Lần 1: Cập nhật ngay để UI phản hồi nhanh
+                    self.recalculatePlugInCount()
+                    
+                    // Lần 2: Cập nhật sau 0.5 giây để đảm bảo file hệ thống đã xóa xong hoàn toàn
+                    DispatchQueue.main.asyncAfter(deadline: .now() + 0.5) {
+                        self.recalculatePlugInCount()
+                    }
+                    // -----------------------------------------------------------
                 }
             } catch {
                 print("Lỗi khôi phục: \(error)")
