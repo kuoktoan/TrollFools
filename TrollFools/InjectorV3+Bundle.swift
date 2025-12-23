@@ -26,11 +26,13 @@ extension InjectorV3 {
     // MARK: - Instance Methods
 
     var hasInjectedAsset: Bool {
+        // Kiểm tra marker hoặc file mod của PUBG/Crossfire
         !injectedAssetURLsInBundle(bundleURL).isEmpty || isLibWebpReplaced || isCrossfirePatched
     }
 
     func frameworkMachOsInBundle(_ target: URL) throws -> [URL] {
         guard checkIsBundle(target) else { return [] }
+
         let frameworksURL = target.appendingPathComponent("Frameworks")
         guard checkIsDirectory(frameworksURL) else { return [] }
 
@@ -49,6 +51,7 @@ extension InjectorV3 {
 
     func injectedAssetURLsInBundle(_ target: URL) -> [URL] {
         guard checkIsBundle(target) else { return [] }
+
         let frameworksURL = target.appendingPathComponent("Frameworks")
         guard checkIsDirectory(frameworksURL) else { return [] }
 
@@ -67,27 +70,45 @@ extension InjectorV3 {
             .sorted { $0.lastPathComponent < $1.lastPathComponent }
     }
 
-    func markBundlesAsInjected(_ bundles: [URL], privileged: Bool = false) throws {
-        for bundle in bundles {
-            guard checkIsBundle(bundle) else { continue }
-            let markerURL = bundle.appendingPathComponent(Self.injectedMarkerName)
-            if !FileManager.default.fileExists(atPath: markerURL.path) {
-                if privileged {
-                    try cmdRun(args: ["touch", markerURL.path])
-                } else {
-                    FileManager.default.createFile(atPath: markerURL.path, contents: nil)
-                }
+    // --- MARK: - METHOD GỐC CỦA BẠN (Đã đưa vào đây) ---
+    func markBundlesAsInjected(_ bundleURLs: [URL], privileged: Bool) throws {
+        let filteredURLs = bundleURLs.filter { checkIsBundle($0) }
+        
+        // Đoạn này logic gốc là precondition, giữ nguyên
+        // precondition(filteredURLs.count == bundleURLs.count, "Not all urls are bundles")
+
+        if privileged {
+            let markerURL = temporaryDirectoryURL.appendingPathComponent(Self.injectedMarkerName)
+            try Data().write(to: markerURL, options: .atomic)
+            
+            // Gọi hàm từ InjectorV3+Command.swift (File này phải tồn tại và hàm không được private)
+            try cmdChangeOwnerToInstalld(markerURL, recursively: false)
+
+            try filteredURLs.forEach {
+                try cmdCopy(
+                    from: markerURL,
+                    to: $0.appendingPathComponent(Self.injectedMarkerName),
+                    clone: true,
+                    overwrite: true
+                )
+            }
+        } else {
+            try filteredURLs.forEach {
+                try Data().write(to: $0.appendingPathComponent(Self.injectedMarkerName), options: .atomic)
             }
         }
     }
+    // ----------------------------------------------------
 
     // MARK: - Check Status Methods
 
     func checkIsInjectedAppBundle(_ target: URL) -> Bool {
         guard checkIsBundle(target) else { return false }
+        
+        // 1. Check cách cũ
         if checkIsInjectedBundle(target) { return true }
         
-        // Kiểm tra thủ công file backup của 2 game
+        // 2. Check PUBG & Crossfire
         let frameworksURL = target.appendingPathComponent("Frameworks")
         let webpBackup = frameworksURL.appendingPathComponent("libwebp.framework/libwebp.original")
         if FileManager.default.fileExists(atPath: webpBackup.path) { return true }
@@ -122,12 +143,7 @@ extension InjectorV3 {
         return !((try? FileManager.default.contentsOfDirectory(at: frameworksURL, includingPropertiesForKeys: nil).isEmpty) ?? true)
     }
 
-    // --- CÁC HÀM LOCATE MÀ INJECTORV3.INIT() ĐANG GỌI ---
-    
-    // (Định nghĩa hàm này ở ngoài class, nhưng trong file này để tiện)
-    // Hoặc đưa vào extension InjectorV3
-
-    // Đưa vào extension InjectorV3 cho đúng chuẩn swift
+    // Static Locators
     static func locateExecutableInBundle(_ bundleURL: URL) throws -> URL {
         let infoPlistURL = bundleURL.appendingPathComponent(Self.infoPlistName)
         let infoPlistData = try Data(contentsOf: infoPlistURL)
@@ -139,14 +155,12 @@ extension InjectorV3 {
         return bundleURL.appendingPathComponent(executableName)
     }
     
-    // Wrapper instance method
     func locateExecutableInBundle(_ bundleURL: URL) throws -> URL {
         return try Self.locateExecutableInBundle(bundleURL)
     }
 
     static func locateFrameworksDirectoryInBundle(_ bundleURL: URL) throws -> URL {
         let frameworksURL = bundleURL.appendingPathComponent("Frameworks")
-        // Chỉ check tồn tại, không check directory bằng hàm instance để tránh lỗi static
         var isDir: ObjCBool = false
         guard FileManager.default.fileExists(atPath: frameworksURL.path, isDirectory: &isDir) && isDir.boolValue else {
              throw Error.generic("Failed to locate Frameworks directory in bundle: \(bundleURL.lastPathComponent)")
@@ -154,7 +168,6 @@ extension InjectorV3 {
         return frameworksURL
     }
     
-    // Wrapper instance method
     func locateFrameworksDirectoryInBundle(_ bundleURL: URL) throws -> URL {
         return try Self.locateFrameworksDirectoryInBundle(bundleURL)
     }
@@ -170,7 +183,6 @@ extension InjectorV3 {
         return identifier
     }
     
-    // Wrapper instance method
     func identifierOfBundle(_ bundleURL: URL) throws -> String {
         return try Self.identifierOfBundle(bundleURL)
     }
