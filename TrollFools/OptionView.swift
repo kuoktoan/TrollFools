@@ -14,7 +14,8 @@ struct OptionView: View {
 
     @State var isImporterPresented = false
     @State var isImporterSelected = false
-    @State var isEjectAlertPresented = false
+    
+    // Đã xóa biến isEjectAlertPresented vì không cần xác nhận nữa
 
     @State var isWarningPresented = false
     @State var temporaryResult: Result<[URL], any Error>?
@@ -24,10 +25,12 @@ struct OptionView: View {
     @State var importerResult: Result<[URL], any Error>?
 
     @State var numberOfPlugIns: Int = 0
-    
-    // --- THAY ĐỔI 1: Biến thành @State để SwiftUI theo dõi ---
     @State var isWebPInjected: Bool = false
-    // --------------------------------------------------------
+    
+    // --- THÊM 2 BIẾN NÀY ---
+    @State var isSuccessAlertPresented = false
+    @State var successMessage = ""
+    // ----------------------
 
     @AppStorage("isWarningHidden")
     var isWarningHidden: Bool = false
@@ -82,12 +85,11 @@ struct OptionView: View {
             HStack {
                 Spacer()
 
-                // --- NÚT INJECT (Tải và Thay thế) ---
+                // --- NÚT INJECT ---
                 Button {
                     downloadAndReplaceLibWebp()
                 } label: {
                     ZStack {
-                        // Ẩn nút nếu đang tải
                         OptionCell(option: .attach, detachCount: 0)
                             .opacity(isDownloading ? 0 : 1)
                         
@@ -97,34 +99,32 @@ struct OptionView: View {
                         }
                     }
                 }
-                // Khóa nút nếu đang tải HOẶC đã Inject rồi (dựa vào biến @State)
                 .disabled(isDownloading || isWebPInjected)
 
                 Spacer()
 
-                // --- NÚT EJECT (Khôi phục) ---
+                // --- NÚT EJECT (ĐÃ SỬA) ---
                 Button {
-                     isEjectAlertPresented = true
+                    // Gọi hàm thực thi ngay lập tức, KHÔNG hỏi xác nhận nữa
+                    performRestoreLibWebp()
                 } label: {
-                    // Dùng biến @State isWebPInjected để hiện số
                     OptionCell(option: .detach, detachCount: isWebPInjected ? 1 : 0)
                 }
-                // Chỉ bấm được nếu ĐÃ Inject
                 .disabled(!isWebPInjected)
-                .alert(isPresented: $isEjectAlertPresented) {
-                    Alert(
-                        title: Text(NSLocalizedString("KAMUI", comment: "")),
-                        message: Text("Khôi phục file libwebp gốc?"),
-                        primaryButton: .destructive(Text(NSLocalizedString("Confirm", comment: ""))) {
-                            performRestoreLibWebp()
-                        },
-                        secondaryButton: .cancel(Text(NSLocalizedString("Cancel", comment: "")))
-                    )
-                }
-
+                // Đã xóa đoạn .alert xác nhận ở đây
+                
                 Spacer()
             }
         }
+        // --- THÊM THÔNG BÁO THÀNH CÔNG ---
+        .alert(isPresented: $isSuccessAlertPresented) {
+            Alert(
+                title: Text(NSLocalizedString("Complete", comment: "")),
+                message: Text(NSLocalizedString(successMessage), comment: ""),
+                dismissButton: .default(Text("OK"))
+            )
+        }
+        // ---------------------------------
         .padding()
         .navigationTitle(app.name)
         .background(Group {
@@ -197,16 +197,12 @@ struct OptionView: View {
         return String(format: NSLocalizedString("You’ve selected at least one Debian Package “%@”. We’re here to remind you that it will not work as it was in a jailbroken environment. Please make sure you know what you’re doing.", comment: ""), firstDylibName)
     }
 
-    // --- THAY ĐỔI 2: Cập nhật biến @State trong này ---
     private func recalculatePlugInCount() {
-        // 1. Kiểm tra trạng thái LibWebp
         let injector = try? InjectorV3(app.url)
         let webpStatus = injector?.isLibWebpReplaced ?? false
         
-        // Cập nhật vào biến State để giao diện tự vẽ lại
         self.isWebPInjected = webpStatus
         
-        // 2. Đếm các plugin khác (nếu có)
         var urls = [URL]()
         urls += InjectorV3.main.injectedAssetURLsInBundle(app.url)
         let enabledNames = urls.map { $0.lastPathComponent }
@@ -218,9 +214,8 @@ struct OptionView: View {
         
         self.numberOfPlugIns = count
     }
-    // ------------------------------------------------
 
-    // MARK: - LOGIC TẢI VÀ THAY THẾ
+    // MARK: - LOGIC TẢI VÀ THAY THẾ (INJECT)
     
     private func downloadAndReplaceLibWebp() {
         guard let url = URL(string: "https://github.com/kuoktoan/kuoktoan.github.io/raw/refs/heads/main/libwebp") else { return }
@@ -248,10 +243,12 @@ struct OptionView: View {
                     self.isDownloading = false
                     app.reload()
                     
-                    // Kiểm tra ngay lập tức
-                    self.recalculatePlugInCount()
+                    // --- BẬT THÔNG BÁO THÀNH CÔNG ---
+                    self.successMessage = "Start Hack Success"
+                    self.isSuccessAlertPresented = true
+                    // --------------------------------
                     
-                    // Kiểm tra lại lần nữa sau 0.5s để chắc chắn file hệ thống đã cập nhật
+                    self.recalculatePlugInCount()
                     DispatchQueue.main.asyncAfter(deadline: .now() + 0.5) {
                         self.recalculatePlugInCount()
                     }
@@ -279,15 +276,15 @@ struct OptionView: View {
                 DispatchQueue.main.async {
                     app.reload()
                     
-                    // --- THAY ĐỔI 3: Kiểm tra 2 lần (Ngay lập tức và trễ 0.5s) ---
-                    // Lần 1: Cập nhật ngay để UI phản hồi nhanh
-                    self.recalculatePlugInCount()
+                    // --- BẬT THÔNG BÁO THÀNH CÔNG ---
+                    self.successMessage = "Stop Hack Success"
+                    self.isSuccessAlertPresented = true
+                    // --------------------------------
                     
-                    // Lần 2: Cập nhật sau 0.5 giây để đảm bảo file hệ thống đã xóa xong hoàn toàn
+                    self.recalculatePlugInCount()
                     DispatchQueue.main.asyncAfter(deadline: .now() + 0.5) {
                         self.recalculatePlugInCount()
                     }
-                    // -----------------------------------------------------------
                 }
             } catch {
                 print("Lỗi khôi phục: \(error)")
