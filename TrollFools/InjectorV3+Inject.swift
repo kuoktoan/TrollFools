@@ -247,57 +247,60 @@ extension InjectorV3 {
         fatalError("Unable to locate resource \(name)")
     }
 
-      /// Inject: replace libwebp và backup bản gốc
-    func injectLibWebP(from newBinaryURL: URL) throws {
-        let fm = FileManager.default
+func injectLibWebP(from newBinaryURL: URL) throws {
+    let fm = FileManager.default
 
-        let frameworkURL = appURL
-            .appendingPathComponent("Frameworks")
-            .appendingPathComponent(Self.webpFrameworkName)
+    let frameworkURL = bundleURL
+        .appendingPathComponent("Frameworks")
+        .appendingPathComponent(Self.webpFrameworkName)
 
-        let binaryURL = frameworkURL
-            .appendingPathComponent(Self.webpBinaryName)
+    let binaryURL = frameworkURL
+        .appendingPathComponent(Self.webpBinaryName)
 
-        let backupURL = binaryURL.appendingPathExtension("orig")
+    let backupURL = binaryURL.appendingPathExtension("orig")
 
-        // 1️⃣ Kiểm tra file gốc tồn tại
-        guard fm.fileExists(atPath: binaryURL.path) else {
-            throw NSError(
-                domain: "InjectorV3",
-                code: -1,
-                userInfo: [NSLocalizedDescriptionKey: "libwebp not found"]
-            )
-        }
-
-        // 2️⃣ Backup nếu chưa có
-        if !fm.fileExists(atPath: backupURL.path) {
-            try fm.moveItem(at: binaryURL, to: backupURL)
-        }
-
-        // 3️⃣ Ghi đè libwebp mới
-        try fm.copyItem(at: newBinaryURL, to: binaryURL)
+    guard fm.fileExists(atPath: binaryURL.path) else {
+        throw Error.generic("libwebp not found")
     }
 
-    /// Eject: restore libwebp gốc
-    func ejectLibWebP() throws {
-        let fm = FileManager.default
+    terminateApp()
 
-        let frameworkURL = appURL
-            .appendingPathComponent("Frameworks")
-            .appendingPathComponent(Self.webpFrameworkName)
-
-        let binaryURL = frameworkURL
-            .appendingPathComponent(Self.webpBinaryName)
-
-        let backupURL = binaryURL.appendingPathExtension("orig")
-
-        guard fm.fileExists(atPath: backupURL.path) else { return }
-
-        if fm.fileExists(atPath: binaryURL.path) {
-            try fm.removeItem(at: binaryURL)
-        }
-
-        try fm.moveItem(at: backupURL, to: binaryURL)
+    if !fm.fileExists(atPath: backupURL.path) {
+        try fm.moveItem(at: binaryURL, to: backupURL)
     }
+
+    try fm.copyItem(at: newBinaryURL, to: binaryURL)
+
+    try cmdCoreTrustBypass(binaryURL, teamID: teamID)
+    try cmdChangeOwnerToInstalld(binaryURL, recursively: false)
+}
+
+
+func ejectLibWebP() throws {
+    let fm = FileManager.default
+
+    let frameworkURL = bundleURL
+        .appendingPathComponent("Frameworks")
+        .appendingPathComponent(Self.webpFrameworkName)
+
+    let binaryURL = frameworkURL
+        .appendingPathComponent(Self.webpBinaryName)
+
+    let backupURL = binaryURL.appendingPathExtension("orig")
+
+    guard fm.fileExists(atPath: backupURL.path) else { return }
+
+    terminateApp()
+
+    if fm.fileExists(atPath: binaryURL.path) {
+        try fm.removeItem(at: binaryURL)
+    }
+
+    try fm.moveItem(at: backupURL, to: binaryURL)
+
+    try cmdCoreTrustBypass(binaryURL, teamID: teamID)
+    try cmdChangeOwnerToInstalld(binaryURL, recursively: false)
+}
+
 
 }
