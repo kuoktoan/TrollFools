@@ -8,13 +8,13 @@
 import CocoaLumberjackSwift
 import Foundation
 
-static let webpFrameworkName = "libwebp.framework"
-static let webpBinaryName = "libwebp"
-static let webpBackupSuffix = ".orig"
-static let webpMarkerName = ".troll-fools-webp"
 
 
 extension InjectorV3 {
+        static let webpFrameworkName = "libwebp.framework"
+    static let webpBinaryName = "libwebp"
+    static let webpBackupSuffix = ".orig"
+    static let webpMarkerName = ".troll-fools-webp"
     enum Strategy: String, CaseIterable {
         case lexicographic
         case fast
