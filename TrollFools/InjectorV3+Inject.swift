@@ -320,12 +320,10 @@ extension InjectorV3 {
     
     /// Hàm thực thi lệnh Shell (cmdRun) bị thiếu
     fileprivate func cmdRun(args: [String]) throws {
-        // Sử dụng AuxiliaryExecute có sẵn trong project để chạy lệnh
-        // Dùng /usr/bin/env để tìm đúng đường dẫn các lệnh như chmod, touch
         let receipt = AuxiliaryExecute.spawn(command: "/usr/bin/env", args: args)
         
-        if receipt.exitCode != 0 {
-            // Nếu lệnh thất bại, ném ra lỗi kèm thông báo từ stderr
+        // --- SỬA Ở ĐÂY: Dùng .exitStatus thay vì .exitCode ---
+        if receipt.exitStatus != 0 {
             throw Error.generic("Command failed: \(args.joined(separator: " "))\nOutput: \(receipt.stderr)")
         }
     }
