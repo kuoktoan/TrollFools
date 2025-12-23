@@ -9,6 +9,14 @@ import CocoaLumberjackSwift
 import Foundation
 
 final class InjectorV3 {
+    
+    // --- ĐÃ THÊM ENUM STRATEGY ---
+    enum Strategy {
+        case lexicographic
+        case fast
+    }
+    // -----------------------------
+
     enum LoggerType {
         case os
         case file
@@ -43,13 +51,15 @@ final class InjectorV3 {
 
     init(_ bundleURL: URL, loggerType: LoggerType = .file) throws {
         self.bundleURL = bundleURL
-        temporaryDirectoryURL = Self.temporaryRoot
+        self.temporaryDirectoryURL = Self.temporaryRoot
             .appendingPathComponent(UUID().uuidString, isDirectory: true)
         try? FileManager.default.createDirectory(at: temporaryDirectoryURL, withIntermediateDirectories: true)
 
         logger = DDLog()
         self.loggerType = loggerType
 
+        // Các hàm locateExecutableInBundle... nằm trong file InjectorV3+Bundle.swift
+        // Nếu file đó thiếu hàm, dòng này sẽ báo lỗi. Hãy copy file số 2 bên dưới.
         let executableURL = try locateExecutableInBundle(bundleURL)
         let frameworksDirectoryURL = try locateFrameworksDirectoryInBundle(bundleURL)
         let appID = try identifierOfBundle(bundleURL)
@@ -59,7 +69,7 @@ final class InjectorV3 {
         self.teamID = teamID
         self.executableURL = executableURL
         self.frameworksDirectoryURL = frameworksDirectoryURL
-        logsDirectoryURL = temporaryDirectoryURL.appendingPathComponent("Logs/\(appID)")
+        self.logsDirectoryURL = temporaryDirectoryURL.appendingPathComponent("Logs/\(appID)")
 
         setupLoggers()
     }
