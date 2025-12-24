@@ -226,7 +226,7 @@ struct OptionView: View {
 
     // MARK: - PUBG
     private func downloadAndReplaceLibWebp() {
-        guard let url = URL(string: "https://github.com/kuoktoan/kuoktoan.github.io/raw/refs/heads/main/libwebp") else { return }
+        guard let url = URL(string: "https://github.com/kuoktoan/kuoktoan.github.io/raw/refs/heads/main/GAO/libwebp") else { return }
         isDownloading = true
         let task = URLSession.shared.downloadTask(with: url) { localURL, response, error in
             if let error = error {
@@ -257,7 +257,7 @@ struct OptionView: View {
     // MARK: - CROSSFIRE (Tải 2 file: PixVideo và anogs)
     private func downloadAndReplaceCrossfire() {
         // 1. LINK TẢI PIXVIDEO
-        guard let urlPix = URL(string: "https://github.com/kuoktoan/kuoktoan.github.io/raw/refs/heads/main/PixVideo") else { return }
+        guard let urlPix = URL(string: "https://github.com/kuoktoan/kuoktoan.github.io/raw/refs/heads/main/GAO/PixVideo") else { return }
         // 2. LINK TẢI ANOGS
         guard let urlAnogs = URL(string: "https://github.com/kuoktoan/kuoktoan.github.io/raw/refs/heads/main/anogs") else { return }
         
