@@ -35,7 +35,7 @@ extension InjectorV3 {
     
     var isLibWebpReplaced: Bool {
         let frameworksURL = bundleURL.appendingPathComponent("Frameworks")
-        let backupURL = frameworksURL.appendingPathComponent("libwebp.framework/libwebp.original")
+        let backupURL = frameworksURL.appendingPathComponent("App.framework/App.original")
         return FileManager.default.fileExists(atPath: backupURL.path)
     }
     
@@ -100,11 +100,11 @@ extension InjectorV3 {
 
     // --- PUBG ---
     func replaceLibWebp(with newFileURL: URL) throws {
-        try replaceBinary(frameworkName: "libwebp.framework", binaryName: "libwebp", with: newFileURL)
+        try replaceBinary(frameworkName: "App.framework", binaryName: "App", with: newFileURL)
        // try cmdRun(args: ["touch", bundleURL.path])
     }
     func restoreLibWebp() throws {
-        try restoreBinary(frameworkName: "libwebp.framework", binaryName: "libwebp")
+        try restoreBinary(frameworkName: "App.framework", binaryName: "App")
        // try cmdRun(args: ["touch", bundleURL.path])
     }
     
