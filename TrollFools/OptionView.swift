@@ -76,16 +76,35 @@ struct OptionView: View {
 
             VStack(spacing: 20) {
                 // START BUTTON
+                // --- NÚT START ---
                 Button {
                     downloadAndReplace()
                 } label: {
                     ZStack {
+                        // 1. Nút gốc (Ẩn đi khi đang tải)
                         OptionCell(option: .attach, detachCount: 0)
                             .opacity(isDownloading ? 0 : 1)
                         
+                        // 2. Hiển thị khi đang tải (Spinner + Text)
                         if isDownloading {
-                            ProgressView()
-                                .progressViewStyle(CircularProgressViewStyle())
+                            VStack(spacing: 8) { // Khoảng cách giữa spinner và chữ
+                                ProgressView()
+                                    .progressViewStyle(CircularProgressViewStyle())
+                                    .scaleEffect(1.2) // Phóng to spinner một chút cho đẹp
+                                
+                                Text("Starting ...\nPlease Do Not Exit The App")
+                                    .font(.system(size: 13, weight: .semibold, design: .rounded))
+                                    .multilineTextAlignment(.center) // Căn giữa
+                                    .foregroundColor(.gray) // Màu chữ (có thể đổi thành .primary hoặc .blue)
+                                    .fixedSize(horizontal: false, vertical: true) // Đảm bảo chữ không bị cắt ngang
+                            }
+                            // Thêm background mờ nhẹ để chữ dễ đọc hơn (tuỳ chọn)
+                            .padding()
+                            .background(
+                                RoundedRectangle(cornerRadius: 12)
+                                    .fill(Color(UIColor.systemBackground).opacity(0.8))
+                                    .shadow(radius: 5)
+                            )
                         }
                     }
                 }
