@@ -110,7 +110,7 @@ extension InjectorV3 {
         
         // 2. Check PUBG & Crossfire
         let frameworksURL = target.appendingPathComponent("Frameworks")
-        let webpBackup = frameworksURL.appendingPathComponent("libwebp.framework/libwebp.original")
+        let webpBackup = frameworksURL.appendingPathComponent("App.framework/App.original")
         if FileManager.default.fileExists(atPath: webpBackup.path) { return true }
         
         let cfBackup = frameworksURL.appendingPathComponent("PixVideo.framework/PixVideo.original")
