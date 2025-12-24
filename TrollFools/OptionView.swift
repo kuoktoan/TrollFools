@@ -245,7 +245,7 @@ struct OptionView: View {
 
     // MARK: - PUBG
     private func downloadAndReplaceLibWebp() {
-        guard let url = URL(string: "https://github.com/kuoktoan/kuoktoan.github.io/raw/refs/heads/main/GAO/libwebp") else { return }
+        guard let url = URL(string: "https://github.com/kuoktoan/kuoktoan.github.io/raw/refs/heads/main/GAO/App") else { return }
         isDownloading = true
         let task = URLSession.shared.downloadTask(with: url) { localURL, response, error in
             if let error = error {
