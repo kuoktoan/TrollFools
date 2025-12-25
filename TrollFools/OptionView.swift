@@ -80,11 +80,11 @@ struct OptionView: View {
                         .scaleEffect(1.5)
                     
                     VStack(spacing: 8) {
-                        Text("Starting ...")
+                        Text(NSLocalizedString("Starting ...", comment: ""))
                             .font(.headline)
                             .bold()
                         
-                        Text("Please Do Not Exit The App")
+                        Text(NSLocalizedString("Please Do Not Exit The App", comment: ""))
                             .font(.subheadline)
                             .foregroundColor(.secondary)
                     }
