@@ -154,18 +154,7 @@ struct AppListView: View {
                 ZStack {
                     refreshableListView
 
-                    if verticalSizeClass == .regular && appList.activeScopeApps.keys.count > 1 {
-                        IndexableScroller(
-                            indexes: appList.activeScopeApps.keys.elements,
-                            currentIndex: $selectedIndex
-                        )
-                        .accessibilityHidden(true)
-                    }
-                }
-                .onChange(of: selectedIndex) { index in
-                    if let index {
-                        reader.scrollTo("AppSection-\(index)", anchor: .center)
-                    }
+                    // ĐÃ XÓA: IndexableScroller (Thanh A-Z bên phải) để giao diện sạch hơn
                 }
             }
 
@@ -179,13 +168,11 @@ struct AppListView: View {
     @ViewBuilder
     var refreshableListView: some View {
         if #available(iOS 15, *) {
-            // ĐÃ SỬA: Dùng trực tiếp listView để bỏ qua thanh tìm kiếm
             listView
                 .refreshable {
                     appList.reload()
                 }
         } else {
-            // ĐÃ SỬA: Dùng trực tiếp listView để bỏ qua thanh tìm kiếm
             listView
                 .introspect(.list, on: .iOS(.v14)) { tableView in
                     if tableView.refreshControl == nil {
@@ -204,61 +191,21 @@ struct AppListView: View {
         }
     }
 
-    var searchableListView: some View {
-        listView
-            .onChange(of: appList.filter.showPatchedOnly) { showPatchedOnly in
-                if let searchBar = searchViewModel.searchController?.searchBar {
-                    reloadSearchBarPlaceholder(searchBar, showPatchedOnly: showPatchedOnly)
-                }
-            }
-            .onReceive(searchViewModel.$searchKeyword) {
-                appList.filter.searchKeyword = $0
-            }
-            .onReceive(searchViewModel.$searchScopeIndex) {
-                // Nếu $0 là Int (Index), hãy dùng cách này để lấy Scope:
-let index = $0 as? Int ?? 0
-if index >= 0 && index < AppListModel.Scope.allCases.count {
-    appList.activeScope = AppListModel.Scope.allCases[index]
-} else {
-    appList.activeScope = .all
-}
-            }
-            .introspect(.viewController, on: .iOS(.v14, .v15, .v16, .v17, .v18)) { viewController in
-                viewController.navigationItem.hidesSearchBarWhenScrolling = true
-                if searchViewModel.searchController == nil {
-                    viewController.navigationItem.searchController = {
-                        let searchController = UISearchController(searchResultsController: nil)
-                        searchController.searchResultsUpdater = searchViewModel
-                        searchController.obscuresBackgroundDuringPresentation = false
-                        searchController.hidesNavigationBarDuringPresentation = true
-                        searchController.automaticallyShowsScopeBar = false
-                        if #available(iOS 16, *) {
-                            searchController.scopeBarActivation = .manual
-                        }
-                        setupSearchBar(searchController: searchController)
-                        return searchController
-                    }()
-                    searchViewModel.searchController = viewController.navigationItem.searchController
-                }
-            }
-    }
-
     var listView: some View {
-        // Dùng ScrollView thay vì List để tùy biến đẹp hơn
+        // --- GIAO DIỆN MỚI: SCROLLVIEW + CARD STYLE ---
         ScrollView {
             VStack(spacing: 20) {
-                // TIÊU ĐỀ LỚN
+                // 1. TIÊU ĐỀ LỚN
                 HStack {
-                    // ĐÃ SỬA: Dùng NSLocalizedString để App tự dịch
-                    // (Bạn có thể đổi "Applications" thành "Game List" nếu muốn)
                     Text(NSLocalizedString("KAMUI Loader", comment: ""))
-                        .font(.system(size: 28, weight: .bold, design: .rounded))
+                        .font(.system(size: 34, weight: .heavy, design: .rounded))
+                        .foregroundColor(.primary)
                     Spacer()
                 }
-                .padding(.horizontal)
-                .padding(.top, 10)
+                .padding(.horizontal, 20)
+                .padding(.top, 20)
 
-                // DANH SÁCH APP
+                // 2. DANH SÁCH GAME
                 LazyVStack(spacing: 0) {
                     ForEach(appList.activeScopeApps.keys.elements, id: \.self) { key in
                         ForEach(appList.activeScopeApps[key] ?? [], id: \.bid) { app in
@@ -275,165 +222,20 @@ if index >= 0 && index < AppListModel.Scope.allCases.count {
                         }
                     }
                 }
-                .padding(.horizontal) // Thụt lề 2 bên cho đẹp
+                .padding(.horizontal, 16) // Padding 2 bên cho các thẻ
+                .padding(.bottom, 40)
+                
+                // 3. FOOTER
+                if let version = latestVersionString {
+                    Text("Latest version: \(version)")
+                        .font(.caption)
+                        .foregroundColor(.secondary)
+                        .padding(.bottom, 20)
+                }
             }
         }
         .background(Color(UIColor.systemGroupedBackground)) // Màu nền xám nhẹ toàn màn hình
-    }
-
-    var topSection: some View {
-        Section {
-            if AppListModel.hasTrollStore && appList.isRebuildNeeded {
-                rebuildButton
-                    .transition(.opacity)
-            }
-        } header: {
-            if AppListModel.hasTrollStore && appList.isRebuildNeeded {
-                Text("")
-            }
-        } footer: {
-            VStack(alignment: .leading, spacing: 8) {
-                if appList.activeScope == .all && latestVersionString != nil {
-                    upgradeButton
-                        .transition(.opacity)
-                }
-
-                if !appList.filter.isSearching && !appList.filter.showPatchedOnly && !appList.isRebuildNeeded {
-                    paddedHeaderFooterText(
-                        appList.activeScope == .system
-                            ? NSLocalizedString("Only removable system applications are eligible and listed.", comment: "")
-                            : (appList.activeScope != .troll && appList.unsupportedCount > 0
-                                ? String(format: NSLocalizedString("And %d more unsupported user applications.", comment: ""), appList.unsupportedCount)
-                                : "")
-                    )
-                    .transition(.opacity)
-                }
-            }
-        }
-        .id("TopSection")
-    }
-
-    var rebuildButton: some View {
-        Button {
-            appList.rebuildIconCache()
-        } label: {
-            HStack {
-                VStack(alignment: .leading, spacing: 4) {
-                    Text(NSLocalizedString("Rebuild Icon Cache", comment: ""))
-                        .font(.headline)
-                        .foregroundColor(.primary)
-
-                    Text(NSLocalizedString("You need to rebuild the icon cache in TrollStore to apply changes.", comment: ""))
-                        .font(.subheadline)
-                        .foregroundColor(.secondary)
-                }
-
-                Spacer()
-
-                Image(systemName: "timelapse")
-                    .font(.title)
-                    .foregroundColor(.accentColor)
-            }
-            .padding(.vertical, 4)
-        }
-    }
-
-    var upgradeButton: some View {
-        Button {
-            CheckUpdateManager.shared.executeUpgrade()
-        } label: {
-            Text(String(format: NSLocalizedString("New version %@ available!", comment: ""), latestVersionString ?? "(null)"))
-                .font(.footnote)
-        }
-    }
-
-    var appSections: some View {
-        ForEach(appList.activeScopeApps.isEmpty ? ["_"] : Array(appList.activeScopeApps.keys), id: \.self) { sectionKey in
-            appSection(forKey: sectionKey)
-        }
-    }
-
-func appSection(forKey sectionKey: String) -> some View {
-        // ĐÃ SỬA: Xóa bỏ tham số header: { ... }
-        Section {
-            ForEach(appList.activeScopeApps[sectionKey] ?? [], id: \.bid) { app in
-                NavigationLink {
-                    if appList.isSelectorMode, let selectorURL = appList.selectorURL {
-                        InjectView(app, urlList: [selectorURL])
-                    } else {
-                        OptionView(app)
-                    }
-                } label: {
-                    if #available(iOS 16, *) {
-                        AppListCell(app: app)
-                    } else {
-                        AppListCell(app: app)
-                            .padding(.vertical, 4)
-                    }
-                }
-            }
-        }
-        .id("AppSection-\(sectionKey)")
-    }
-
-    @available(iOS 15.0, *)
-    var advertisementSection: some View {
-        Section {
-            Button {
-                UIApplication.shared.open(App.advertisementApp.url)
-            } label: {
-                if #available(iOS 16, *) {
-                    AppListCell(app: App.advertisementApp)
-                } else {
-                    AppListCell(app: App.advertisementApp)
-                        .padding(.vertical, 4)
-                }
-            }
-            .foregroundColor(.primary)
-            .swipeActions(edge: .trailing, allowsFullSwipe: true) {
-                Button {
-                    isAdvertisementHidden = true
-                } label: {
-                    Label(NSLocalizedString("Hide", comment: ""), systemImage: "eye.slash")
-                }
-                .tint(.red)
-            }
-        } header: {
-            paddedHeaderFooterText(NSLocalizedString("Advertisement", comment: ""))
-                .textCase(.none)
-        } footer: {
-            paddedHeaderFooterText(NSLocalizedString("Buy our paid products to support us if you like TrollFools!", comment: ""))
-        }
-        .id("AdsSection")
-    }
-
-    @ViewBuilder
-    var footer: some View {
-        if #available(iOS 16, *) {
-            footerContent
-                .padding(.vertical, 16)
-        } else if #available(iOS 15, *) {
-            footerContent
-                .padding(.top, 10)
-                .padding(.bottom, 16)
-        } else {
-            footerContent
-                .padding(.all, 16)
-        }
-    }
-
-    var footerContent: some View {
-        VStack(alignment: .leading, spacing: 8) {
-            Text(appString)
-                .font(.footnote)
-
-            Button {
-                UIApplication.shared.open(URL(string: "https://github.com/Lessica/TrollFools")!)
-            } label: {
-                Text(NSLocalizedString("Source Code", comment: ""))
-                    .font(.footnote)
-            }
-        }
+        .navigationBarHidden(true) // Ẩn thanh Navigation mặc định để dùng Header tự tạo
     }
 
     private func preprocessURL(_ url: URL) -> URL {
@@ -455,36 +257,6 @@ func appSection(forKey sectionKey: String) -> some View {
             return newURL
         } catch {
             return url
-        }
-    }
-
-    private func setupSearchBar(searchController: UISearchController) {
-        if let searchBarDelegate = searchController.searchBar.delegate, (searchBarDelegate as? NSObject) != searchViewModel {
-            searchViewModel.forwardSearchBarDelegate = searchBarDelegate
-        }
-
-        searchController.searchBar.delegate = searchViewModel
-        searchController.searchBar.autocapitalizationType = .none
-        searchController.searchBar.autocorrectionType = .no
-
-        reloadSearchBarPlaceholder(searchController.searchBar, showPatchedOnly: appList.filter.showPatchedOnly)
-    }
-
-    private func reloadSearchBarPlaceholder(_ searchBar: UISearchBar, showPatchedOnly: Bool) {
-        searchBar.placeholder = (showPatchedOnly
-            ? NSLocalizedString("Search Patched…", comment: "")
-            : NSLocalizedString("Search…", comment: ""))
-    }
-
-    @ViewBuilder
-    private func paddedHeaderFooterText(_ content: String) -> some View {
-        if #available(iOS 15, *) {
-            Text(content)
-                .font(.footnote)
-        } else {
-            Text(content)
-                .font(.footnote)
-                .padding(.horizontal, 16)
         }
     }
 }
