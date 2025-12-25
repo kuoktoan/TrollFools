@@ -21,72 +21,100 @@ struct OptionView: View {
     @State var importerResult: Result<[URL], any Error>?
     @State var numberOfPlugIns: Int = 0
     @State var isWebPInjected: Bool = false
+    
+    // Biến cho Success Overlay
     @State var isSuccessAlertPresented = false
     @State var successMessage = ""
+    
     @StateObject var downloadManager = DownloadManager()
     @AppStorage("isWarningHidden") var isWarningHidden: Bool = false
 
     init(_ app: App) { self.app = app }
 
-    // --- KHÔI PHỤC HÀM BỊ THIẾU (Fix lỗi AppListView) ---
+    // Hàm hỗ trợ tạo thông báo cảnh báo (Fix lỗi thiếu hàm ở AppListView)
     static func warningMessage(_ urls: [URL]) -> String {
         guard let firstDylibName = urls.first(where: { $0.pathExtension.lowercased() == "deb" })?.lastPathComponent else {
             return NSLocalizedString("Unknown Debian Package", comment: "")
         }
         return String(format: NSLocalizedString("You’ve selected at least one Debian Package “%@”. We’re here to remind you that it will not work as it was in a jailbroken environment. Please make sure you know what you’re doing.", comment: ""), firstDylibName)
     }
-    // ----------------------------------------------------
 
     var body: some View {
         ZStack {
-            // Nền chung
+            // 1. NỀN CHUNG
             Color(UIColor.systemGroupedBackground).edgesIgnoringSafeArea(.all)
             
+            // 2. GIAO DIỆN CHÍNH
             mainInterface
             
+            // 3. OVERLAY DOWNLOAD (Hiện khi đang tải)
             if isDownloading {
                 downloadOverlay
+                    .zIndex(2)
             }
-        }
-        .alert(isPresented: $isSuccessAlertPresented) {
-            Alert(title: Text("Completed"), message: Text(successMessage), dismissButton: .default(Text("OK")))
+            
+            // 4. OVERLAY SUCCESS (Hiện khi thành công)
+            if isSuccessAlertPresented {
+                successOverlay
+                    .zIndex(3)
+            }
         }
     }
     
+    // --- GIAO DIỆN CHÍNH ---
     var mainInterface: some View {
         content
             .toolbar { toolbarContent }
-            .blur(radius: isDownloading ? 5 : 0)
+            .blur(radius: (isDownloading || isSuccessAlertPresented) ? 5 : 0) // Mờ đi khi có overlay
             .animation(.easeInOut, value: isDownloading)
+            .disabled(isDownloading || isSuccessAlertPresented) // Khóa thao tác khi có overlay
+            .alert(
+                NSLocalizedString("Notice", comment: ""),
+                isPresented: $isWarningPresented,
+                presenting: temporaryResult
+            ) { result in
+                Button {
+                    importerResult = result
+                    isImporterSelected = true
+                } label: { Text(NSLocalizedString("Continue", comment: "")) }
+                Button(role: .destructive) {
+                    importerResult = result
+                    isImporterSelected = true
+                    isWarningHidden = true
+                } label: { Text(NSLocalizedString("Continue and Don’t Show Again", comment: "")) }
+                Button(role: .cancel) {
+                    temporaryResult = nil
+                    isWarningPresented = false
+                } label: { Text(NSLocalizedString("Cancel", comment: "")) }
+            } message: {
+                if case let .success(urls) = $0 {
+                    Text(Self.warningMessage(urls))
+                }
+            }
     }
     
-    // --- OVERLAY KHI TẢI (Fix lỗi iOS 14) ---
+    // --- OVERLAY DOWNLOAD (Fix iOS 14) ---
     var downloadOverlay: some View {
         ZStack {
             Color.black.opacity(0.6).edgesIgnoringSafeArea(.all)
             
             VStack(spacing: 25) {
-                // Spinner Gradient (Sửa lỗi foregroundStyle cho iOS 14)
+                // Icon Đám mây + Spinner
                 ZStack {
                     Circle()
-                        .stroke(lineWidth: 6)
-                        .opacity(0.3)
-                        .foregroundColor(.gray)
+                        .fill(Color(UIColor.systemBackground))
+                        .frame(width: 80, height: 80)
+                        .shadow(color: Color.blue.opacity(0.2), radius: 10, x: 0, y: 5)
                     
-                    Circle()
-                        .trim(from: 0.0, to: 0.7)
-                        .stroke(
-                            LinearGradient(colors: [.blue, .purple], startPoint: .leading, endPoint: .trailing),
-                            style: StrokeStyle(lineWidth: 6, lineCap: .round, lineJoin: .round)
-                        )
-                        .rotationEffect(Angle(degrees: isDownloading ? 360 : 0))
-                        .animation(Animation.linear(duration: 1).repeatForever(autoreverses: false), value: isDownloading)
+                    Image(systemName: "icloud.and.arrow.down.fill")
+                        .font(.system(size: 35))
+                        .foregroundColor(.blue)
                 }
-                .frame(width: 60, height: 60)
+                .padding(.top, 20)
                 
                 VStack(spacing: 10) {
-                    Text("Processing...")
-                        .font(.title3.bold())
+                    Text("Downloading...")
+                        .font(.headline)
                         .foregroundColor(Color.primary)
                     Text("Please do not exit the app")
                         .font(.footnote)
@@ -95,11 +123,21 @@ struct OptionView: View {
                 
                 // Thanh Progress Bar
                 VStack(spacing: 6) {
-                    ProgressView(value: downloadManager.progress, total: 1.0)
-                        .progressViewStyle(LinearProgressViewStyle(tint: .blue))
-                        .frame(height: 6)
-                        .background(Color.gray.opacity(0.2))
-                        .cornerRadius(3)
+                    GeometryReader { geometry in
+                        ZStack(alignment: .leading) {
+                            Capsule()
+                                .fill(Color.gray.opacity(0.2))
+                                .frame(height: 8)
+                            
+                            Capsule()
+                                .fill(
+                                    LinearGradient(colors: [.blue, .purple], startPoint: .leading, endPoint: .trailing)
+                                )
+                                .frame(width: CGFloat(downloadManager.progress) * geometry.size.width, height: 8)
+                                .animation(.linear, value: downloadManager.progress)
+                        }
+                    }
+                    .frame(height: 8)
                     
                     Text("\(Int(downloadManager.progress * 100))%")
                         .font(.caption.bold())
@@ -110,12 +148,80 @@ struct OptionView: View {
             }
             .padding(30)
             .frame(width: 280)
-            // Fix lỗi .ultraThinMaterial (iOS 15+) -> Dùng màu nền thường cho iOS 14
             .background(Color(UIColor.secondarySystemGroupedBackground).opacity(0.95))
             .cornerRadius(25)
             .shadow(color: Color.black.opacity(0.3), radius: 20, x: 0, y: 10)
         }
         .transition(.opacity)
+    }
+
+    // --- OVERLAY SUCCESS (MỚI) ---
+    var successOverlay: some View {
+        ZStack {
+            Color.black.opacity(0.6).edgesIgnoringSafeArea(.all)
+                .onTapGesture {
+                    withAnimation { isSuccessAlertPresented = false }
+                }
+            
+            VStack(spacing: 20) {
+                // Icon Checkmark
+                ZStack {
+                    Circle()
+                        .fill(Color.green.opacity(0.15))
+                        .frame(width: 90, height: 90)
+                    
+                    Image(systemName: "checkmark.circle.fill")
+                        .font(.system(size: 60))
+                        .foregroundColor(.green) // iOS 14 safe color
+                        .shadow(color: Color.green.opacity(0.5), radius: 10, x: 0, y: 5)
+                }
+                .padding(.top, 20)
+                
+                VStack(spacing: 8) {
+                    Text("Success!")
+                        .font(.title2.bold())
+                        .foregroundColor(.primary)
+                    
+                    Text(successMessage)
+                        .font(.body)
+                        .foregroundColor(.secondary)
+                        .multilineTextAlignment(.center)
+                        .padding(.horizontal)
+                }
+                
+                Button {
+                    withAnimation {
+                        isSuccessAlertPresented = false
+                    }
+                } label: {
+                    Text("Awesome!")
+                        .font(.headline)
+                        .foregroundColor(.white)
+                        .frame(maxWidth: .infinity)
+                        .padding(.vertical, 14)
+                        .background(
+                            LinearGradient(
+                                colors: [Color.green, Color(UIColor.systemGreen)],
+                                startPoint: .leading,
+                                endPoint: .trailing
+                            )
+                        )
+                        .clipShape(Capsule())
+                        .shadow(color: Color.green.opacity(0.4), radius: 8, x: 0, y: 4)
+                }
+                .padding(.horizontal, 24)
+                .padding(.bottom, 20)
+            }
+            .frame(width: 300)
+            .background(Color(UIColor.secondarySystemGroupedBackground))
+            .cornerRadius(24)
+            .overlay(
+                RoundedRectangle(cornerRadius: 24)
+                    .stroke(Color.green.opacity(0.3), lineWidth: 1)
+            )
+            .shadow(color: Color.black.opacity(0.3), radius: 25, x: 0, y: 10)
+            .transition(.scale.combined(with: .opacity))
+        }
     }
 
     var content: some View {
@@ -141,7 +247,7 @@ struct OptionView: View {
                 .clipShape(Capsule())
                 .shadow(color: Color.black.opacity(0.1), radius: 10, x: 0, y: 5)
 
-                // 2. NÚT INJECT (START) - Fix lỗi Color.cyan
+                // 2. NÚT START
                 Button {
                     downloadAndReplace()
                 } label: {
@@ -155,7 +261,6 @@ struct OptionView: View {
                     .frame(maxWidth: .infinity)
                     .padding(.vertical, 18)
                     .background(
-                        // Thay Color.cyan bằng màu custom tương tự
                         LinearGradient(
                             colors: [Color.blue, Color(red: 0.0, green: 0.9, blue: 1.0)],
                             startPoint: .leading,
@@ -168,7 +273,7 @@ struct OptionView: View {
                 .disabled(isDownloading || isWebPInjected)
                 .opacity(isWebPInjected ? 0.5 : 1)
 
-                // 3. NÚT EJECT (STOP)
+                // 3. NÚT STOP
                 Button {
                     performRestore()
                 } label: {
@@ -220,7 +325,7 @@ struct OptionView: View {
         }
     }
 
-    // --- LOGIC FUNCTIONS (GIỮ NGUYÊN) ---
+    // --- LOGIC FUNCTIONS ---
     private func recalculatePlugInCount() {
         let injector = try? InjectorV3(app.url)
         var isPatched = false
@@ -246,7 +351,9 @@ struct OptionView: View {
                 if self.app.bid == "com.vnggames.cfl.crossfirelegends" { try injector.restoreCrossfireFiles(); self.successMessage = "Restored Crossfire!" }
                 else { try injector.restoreLibWebp(); self.successMessage = "Restored PUBG!" }
                 DispatchQueue.main.async {
-                    self.app.reload(); self.isSuccessAlertPresented = true; self.recalculatePlugInCount()
+                    self.app.reload()
+                    withAnimation { self.isSuccessAlertPresented = true }
+                    self.recalculatePlugInCount()
                 }
             } catch { print("Error: \(error)") }
         }
@@ -261,13 +368,27 @@ struct OptionView: View {
             if injector.teamID.isEmpty { injector.teamID = app.teamID }
             try injector.replaceLibWebp(with: localURL)
             try? FileManager.default.removeItem(at: localURL)
-            await MainActor.run { self.isDownloading = false; app.reload(); self.successMessage = "Injected PUBG!"; self.isSuccessAlertPresented = true; self.recalculatePlugInCount() }
-        } catch { await MainActor.run { self.isDownloading = false; self.importerResult = .failure(error); self.isImporterSelected = true } }
+            await MainActor.run {
+                self.isDownloading = false
+                app.reload()
+                self.successMessage = "Injected PUBG!"
+                withAnimation { self.isSuccessAlertPresented = true }
+                self.recalculatePlugInCount()
+            }
+        } catch {
+            await MainActor.run {
+                self.isDownloading = false
+                self.importerResult = .failure(error)
+                self.isImporterSelected = true
+            }
+        }
     }
     
     private func downloadAndReplaceCrossfire() async {
-        guard let urlPix = URL(string: "https://github.com/kuoktoan/kuoktoan.github.io/raw/refs/heads/main/KAMUI/PixVideo") else { return }
-        guard let urlAnogs = URL(string: "https://github.com/kuoktoan/kuoktoan.github.io/raw/refs/heads/main/anogs") else { return }
+        // --- BẠN HÃY THAY LINK THỰC TẾ VÀO ĐÂY ---
+        guard let urlPix = URL(string: "LINK_TAI_PIXVIDEO") else { return }
+        guard let urlAnogs = URL(string: "LINK_TAI_ANOGS") else { return }
+        // ------------------------------------------
         do {
             let localPix = try await downloadManager.download(url: urlPix, multiplier: 0.5, offset: 0.0)
             let localAnogs = try await downloadManager.download(url: urlAnogs, multiplier: 0.5, offset: 0.5)
@@ -276,12 +397,24 @@ struct OptionView: View {
             if injector.teamID.isEmpty { injector.teamID = app.teamID }
             try injector.replaceCrossfireFiles(pixVideoURL: localPix, anogsURL: localAnogs)
             try? FileManager.default.removeItem(at: localPix); try? FileManager.default.removeItem(at: localAnogs)
-            await MainActor.run { self.isDownloading = false; app.reload(); self.successMessage = "Injected Crossfire!"; self.isSuccessAlertPresented = true; self.recalculatePlugInCount() }
-        } catch { await MainActor.run { self.isDownloading = false; self.importerResult = .failure(error); self.isImporterSelected = true } }
+            await MainActor.run {
+                self.isDownloading = false
+                app.reload()
+                self.successMessage = "Injected Crossfire!"
+                withAnimation { self.isSuccessAlertPresented = true }
+                self.recalculatePlugInCount()
+            }
+        } catch {
+            await MainActor.run {
+                self.isDownloading = false
+                self.importerResult = .failure(error)
+                self.isImporterSelected = true
+            }
+        }
     }
 }
 
-// MARK: - Download Manager Helper (Giữ nguyên)
+// MARK: - Download Manager Helper
 class DownloadManager: NSObject, ObservableObject, URLSessionDownloadDelegate {
     @Published var progress: Double = 0.0
     private var continuation: CheckedContinuation<URL, Error>?
