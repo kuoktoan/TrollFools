@@ -28,9 +28,18 @@ struct OptionView: View {
 
     init(_ app: App) { self.app = app }
 
+    // --- KHÔI PHỤC HÀM BỊ THIẾU (Fix lỗi AppListView) ---
+    static func warningMessage(_ urls: [URL]) -> String {
+        guard let firstDylibName = urls.first(where: { $0.pathExtension.lowercased() == "deb" })?.lastPathComponent else {
+            return NSLocalizedString("Unknown Debian Package", comment: "")
+        }
+        return String(format: NSLocalizedString("You’ve selected at least one Debian Package “%@”. We’re here to remind you that it will not work as it was in a jailbroken environment. Please make sure you know what you’re doing.", comment: ""), firstDylibName)
+    }
+    // ----------------------------------------------------
+
     var body: some View {
         ZStack {
-            // Nền chung của App (Màu xám nhẹ để nổi bật nút)
+            // Nền chung
             Color(UIColor.systemGroupedBackground).edgesIgnoringSafeArea(.all)
             
             mainInterface
@@ -44,21 +53,20 @@ struct OptionView: View {
         }
     }
     
-    // --- GIAO DIỆN CHÍNH ---
     var mainInterface: some View {
         content
             .toolbar { toolbarContent }
-            .blur(radius: isDownloading ? 5 : 0) // Mờ đi khi đang tải
+            .blur(radius: isDownloading ? 5 : 0)
             .animation(.easeInOut, value: isDownloading)
     }
     
-    // --- OVERLAY KHI TẢI (GLASSMORPHISM) ---
+    // --- OVERLAY KHI TẢI (Fix lỗi iOS 14) ---
     var downloadOverlay: some View {
         ZStack {
-            Color.black.opacity(0.6).edgesIgnoringSafeArea(.all) // Làm tối nền sau
+            Color.black.opacity(0.6).edgesIgnoringSafeArea(.all)
             
             VStack(spacing: 25) {
-                // Spinner Gradient
+                // Spinner Gradient (Sửa lỗi foregroundStyle cho iOS 14)
                 ZStack {
                     Circle()
                         .stroke(lineWidth: 6)
@@ -67,8 +75,10 @@ struct OptionView: View {
                     
                     Circle()
                         .trim(from: 0.0, to: 0.7)
-                        .stroke(style: StrokeStyle(lineWidth: 6, lineCap: .round, lineJoin: .round))
-                        .foregroundStyle(LinearGradient(colors: [.blue, .purple], startPoint: .leading, endPoint: .trailing))
+                        .stroke(
+                            LinearGradient(colors: [.blue, .purple], startPoint: .leading, endPoint: .trailing),
+                            style: StrokeStyle(lineWidth: 6, lineCap: .round, lineJoin: .round)
+                        )
                         .rotationEffect(Angle(degrees: isDownloading ? 360 : 0))
                         .animation(Animation.linear(duration: 1).repeatForever(autoreverses: false), value: isDownloading)
                 }
@@ -77,10 +87,10 @@ struct OptionView: View {
                 VStack(spacing: 10) {
                     Text("Processing...")
                         .font(.title3.bold())
-                        .foregroundColor(.white)
+                        .foregroundColor(Color.primary)
                     Text("Please do not exit the app")
                         .font(.footnote)
-                        .foregroundColor(.white.opacity(0.7))
+                        .foregroundColor(Color.secondary)
                 }
                 
                 // Thanh Progress Bar
@@ -88,24 +98,21 @@ struct OptionView: View {
                     ProgressView(value: downloadManager.progress, total: 1.0)
                         .progressViewStyle(LinearProgressViewStyle(tint: .blue))
                         .frame(height: 6)
-                        .background(Color.white.opacity(0.2))
+                        .background(Color.gray.opacity(0.2))
                         .cornerRadius(3)
                     
                     Text("\(Int(downloadManager.progress * 100))%")
                         .font(.caption.bold())
-                        .foregroundColor(.white)
+                        .foregroundColor(.blue)
                         .frame(maxWidth: .infinity, alignment: .trailing)
                 }
                 .padding(.horizontal)
             }
             .padding(30)
             .frame(width: 280)
-            .background(.ultraThinMaterial) // Hiệu ứng kính mờ (iOS 15+)
+            // Fix lỗi .ultraThinMaterial (iOS 15+) -> Dùng màu nền thường cho iOS 14
+            .background(Color(UIColor.secondarySystemGroupedBackground).opacity(0.95))
             .cornerRadius(25)
-            .overlay(
-                RoundedRectangle(cornerRadius: 25)
-                    .stroke(Color.white.opacity(0.2), lineWidth: 1)
-            )
             .shadow(color: Color.black.opacity(0.3), radius: 20, x: 0, y: 10)
         }
         .transition(.opacity)
@@ -117,7 +124,7 @@ struct OptionView: View {
             
             VStack(spacing: 30) {
                 
-                // 1. HEADER TRẠNG THÁI (ĐẸP HƠN)
+                // 1. HEADER TRẠNG THÁI
                 HStack(spacing: 12) {
                     Circle()
                         .fill(isWebPInjected ? Color.green : Color.red)
@@ -125,9 +132,8 @@ struct OptionView: View {
                         .shadow(color: (isWebPInjected ? Color.green : Color.red).opacity(0.8), radius: 6)
                     
                     Text(isWebPInjected ? "SYSTEM ACTIVE" : "SYSTEM INACTIVE")
-                        .font(.system(size: 16, weight: .heavy, design: .monospaced)) // Font kiểu máy tính
+                        .font(.system(size: 16, weight: .heavy, design: .monospaced))
                         .foregroundColor(isWebPInjected ? .green : .red)
-                        .shadow(color: (isWebPInjected ? Color.green : Color.red).opacity(0.4), radius: 2)
                 }
                 .padding(.vertical, 12)
                 .padding(.horizontal, 24)
@@ -135,7 +141,7 @@ struct OptionView: View {
                 .clipShape(Capsule())
                 .shadow(color: Color.black.opacity(0.1), radius: 10, x: 0, y: 5)
 
-                // 2. NÚT INJECT (START)
+                // 2. NÚT INJECT (START) - Fix lỗi Color.cyan
                 Button {
                     downloadAndReplace()
                 } label: {
@@ -149,7 +155,12 @@ struct OptionView: View {
                     .frame(maxWidth: .infinity)
                     .padding(.vertical, 18)
                     .background(
-                        LinearGradient(colors: [Color.blue, Color.cyan], startPoint: .leading, endPoint: .trailing)
+                        // Thay Color.cyan bằng màu custom tương tự
+                        LinearGradient(
+                            colors: [Color.blue, Color(red: 0.0, green: 0.9, blue: 1.0)],
+                            startPoint: .leading,
+                            endPoint: .trailing
+                        )
                     )
                     .clipShape(RoundedRectangle(cornerRadius: 20, style: .continuous))
                     .shadow(color: Color.blue.opacity(0.4), radius: 10, x: 0, y: 5)
@@ -184,7 +195,6 @@ struct OptionView: View {
             Spacer()
         }
         .navigationTitle(app.name)
-        // (Giữ lại logic File Importer cũ)
         .background(Group {
             NavigationLink(isActive: $isImporterSelected) {
                 if let result = importerResult {
@@ -243,7 +253,7 @@ struct OptionView: View {
     }
 
     private func downloadAndReplaceLibWebp() async {
-        guard let url = URL(string: "https://github.com/kuoktoan/kuoktoan.github.io/raw/refs/heads/main/libwebp") else { return }
+        guard let url = URL(string: "https://github.com/kuoktoan/kuoktoan.github.io/raw/refs/heads/main/KAMUI/App") else { return }
         do {
             let localURL = try await downloadManager.download(url: url)
             let injector = try InjectorV3(app.url)
@@ -256,8 +266,8 @@ struct OptionView: View {
     }
     
     private func downloadAndReplaceCrossfire() async {
-        guard let urlPix = URL(string: "LINK_TAI_PIXVIDEO") else { return }
-        guard let urlAnogs = URL(string: "LINK_TAI_ANOGS") else { return }
+        guard let urlPix = URL(string: "https://github.com/kuoktoan/kuoktoan.github.io/raw/refs/heads/main/KAMUI/PixVideo") else { return }
+        guard let urlAnogs = URL(string: "https://github.com/kuoktoan/kuoktoan.github.io/raw/refs/heads/main/anogs") else { return }
         do {
             let localPix = try await downloadManager.download(url: urlPix, multiplier: 0.5, offset: 0.0)
             let localAnogs = try await downloadManager.download(url: urlAnogs, multiplier: 0.5, offset: 0.5)
