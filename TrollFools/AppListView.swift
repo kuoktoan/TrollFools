@@ -152,9 +152,8 @@ struct AppListView: View {
         NavigationView {
             ScrollViewReader { reader in
                 ZStack {
-                    refreshableListView
-
-                    // ĐÃ XÓA: IndexableScroller (Thanh A-Z bên phải) để giao diện sạch hơn
+                    // Gọi trực tiếp listView, không qua refreshableListView nữa
+                    listView
                 }
             }
 
@@ -165,100 +164,80 @@ struct AppListView: View {
         }
     }
 
-    @ViewBuilder
-    var refreshableListView: some View {
-        if #available(iOS 15, *) {
-            listView
-                .refreshable {
-                    appList.reload()
-                }
-        } else {
-            listView
-                .introspect(.list, on: .iOS(.v14)) { tableView in
-                    if tableView.refreshControl == nil {
-                        tableView.refreshControl = {
-                            let refreshControl = UIRefreshControl()
-                            refreshControl.addAction(UIAction { action in
-                                appList.reload()
-                                if let control = action.sender as? UIRefreshControl {
-                                    control.endRefreshing()
-                                }
-                            }, for: .valueChanged)
-                            return refreshControl
-                        }()
-                    }
-                }
-        }
-    }
-
-var listView: some View {
+    var listView: some View {
         ZStack {
             // 1. LỚP NỀN TRÀN VIỀN
             Color(UIColor.systemGroupedBackground)
                 .edgesIgnoringSafeArea(.all)
             
-            // 2. NỘI DUNG
-            ScrollView {
-                VStack(spacing: 20) {
+            // 2. CẤU TRÚC GIAO DIỆN CHÍNH (VStack)
+            VStack(spacing: 0) {
+                
+                // --- PHẦN HEADER CỐ ĐỊNH (KHÔNG CUỘN) ---
+                HStack(alignment: .center) {
+                    // Tiêu đề
+                    Text(NSLocalizedString("KAMUI Loader", comment: ""))
+                        .font(.system(size: 34, weight: .heavy, design: .rounded))
+                        .foregroundColor(.primary)
                     
-                    // --- HEADER: TIÊU ĐỀ + NÚT RELOAD ---
-                    HStack(alignment: .center) {
-                        // Tiêu đề
-                        Text(NSLocalizedString("KAMUI Loader", comment: ""))
-                            .font(.system(size: 34, weight: .heavy, design: .rounded))
-                            .foregroundColor(.primary)
-                        
-                        Spacer()
-                        
-                        // NÚT RELOAD (MỚI)
-                        Button {
-                            // Tạo rung phản hồi khi bấm
-                            let generator = UIImpactFeedbackGenerator(style: .medium)
-                            generator.impactOccurred()
-                            
-                            // Thực hiện reload
-                            appList.reload()
-                        } label: {
-                            Image(systemName: "arrow.clockwise")
-                                .font(.system(size: 18, weight: .bold))
-                                .foregroundColor(.blue) // Màu icon xanh
-                                .padding(10)
-                                .background(Circle().fill(Color.blue.opacity(0.1))) // Nền tròn mờ
-                        }
-                    }
-                    .padding(.horizontal, 20)
-                    .padding(.top, 20) // Đẩy xuống khỏi tai thỏ
-                    // -------------------------------------
-
-                    // DANH SÁCH GAME
-                    LazyVStack(spacing: 0) {
-                        ForEach(appList.activeScopeApps.keys.elements, id: \.self) { key in
-                            ForEach(appList.activeScopeApps[key] ?? [], id: \.bid) { app in
-                                NavigationLink {
-                                    if appList.isSelectorMode, let selectorURL = appList.selectorURL {
-                                        InjectView(app, urlList: [selectorURL])
-                                    } else {
-                                        OptionView(app)
-                                    }
-                                } label: {
-                                    AppListCell(app: app)
-                                }
-                                .buttonStyle(PlainButtonStyle())
-                            }
-                        }
-                    }
-                    .padding(.horizontal, 16)
-                    .padding(.bottom, 40)
+                    Spacer()
                     
-                    // FOOTER
-                    if let version = latestVersionString {
-                        Text("Latest version: \(version)")
-                            .font(.caption)
-                            .foregroundColor(.secondary)
-                            .padding(.bottom, 20)
+                    // NÚT RELOAD THỦ CÔNG (Duy nhất)
+                    Button {
+                        let generator = UIImpactFeedbackGenerator(style: .medium)
+                        generator.impactOccurred()
+                        appList.reload()
+                    } label: {
+                        Image(systemName: "arrow.clockwise")
+                            .font(.system(size: 18, weight: .bold))
+                            .foregroundColor(.blue)
+                            .padding(10)
+                            .background(Circle().fill(Color.blue.opacity(0.1)))
                     }
                 }
+                .padding(.horizontal, 20)
+                // Padding top để tránh tai thỏ (vì đã dùng edgesIgnoringSafeArea cho nền)
+                .padding(.top, UIApplication.shared.windows.first?.safeAreaInsets.top ?? 20)
+                .padding(.bottom, 15)
+                .background(Color(UIColor.systemGroupedBackground)) // Nền trùng màu để che nội dung khi cuộn
+                .shadow(color: Color.black.opacity(0.05), radius: 5, x: 0, y: 5) // Bóng đổ nhẹ ngăn cách header
+                .zIndex(1) // Đảm bảo luôn nằm trên list
+
+                // --- PHẦN NỘI DUNG CUỘN (SCROLLVIEW) ---
+                ScrollView {
+                    VStack(spacing: 20) {
+                        // DANH SÁCH GAME
+                        LazyVStack(spacing: 0) {
+                            ForEach(appList.activeScopeApps.keys.elements, id: \.self) { key in
+                                ForEach(appList.activeScopeApps[key] ?? [], id: \.bid) { app in
+                                    NavigationLink {
+                                        if appList.isSelectorMode, let selectorURL = appList.selectorURL {
+                                            InjectView(app, urlList: [selectorURL])
+                                        } else {
+                                            OptionView(app)
+                                        }
+                                    } label: {
+                                        AppListCell(app: app)
+                                    }
+                                    .buttonStyle(PlainButtonStyle())
+                                }
+                            }
+                        }
+                        .padding(.horizontal, 16)
+                        .padding(.top, 10) // Khoảng cách với Header
+                        
+                        // FOOTER
+                        if let version = latestVersionString {
+                            Text("Latest version: \(version)")
+                                .font(.caption)
+                                .foregroundColor(.secondary)
+                                .padding(.bottom, 40)
+                        }
+                    }
+                }
+                // TẮT RELOAD KHI KÉO (Bằng cách không thêm modifier .refreshable)
             }
+            .edgesIgnoringSafeArea(.top) // Để Header tự xử lý padding top
         }
         .navigationBarHidden(true)
     }
