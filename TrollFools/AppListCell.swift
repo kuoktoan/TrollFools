@@ -48,11 +48,11 @@ struct AppListCell: View {
             VStack(alignment: .leading, spacing: 6) {
                 // 2. TÊN APP (SỬA LỖI CẮT CHỮ)
                 Text(app.name)
-                    .font(.system(size: 17, weight: .bold, design: .rounded))
+                    .font(.system(size: 16, weight: .bold, design: .rounded))
                     .foregroundColor(.primary)
-                    .lineLimit(2) // Cho phép xuống dòng tối đa 2 dòng
-                    .minimumScaleFactor(0.8) // Nếu vẫn dài, tự động thu nhỏ chữ xuống 80%
-                    .fixedSize(horizontal: false, vertical: true) // Mở rộng chiều cao nếu cần
+                    .lineLimit(1) // Cho phép xuống dòng tối đa 2 dòng
+                    //.minimumScaleFactor(0.8) // Nếu vẫn dài, tự động thu nhỏ chữ xuống 80%
+                    //.fixedSize(horizontal: false, vertical: true) // Mở rộng chiều cao nếu cần
 
                 // 3. BADGES
                 HStack(spacing: 8) {
