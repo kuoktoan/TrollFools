@@ -1,12 +1,3 @@
-//
-//  OptionView.swift
-//  TrollFools
-//
-//  Created by Lessica on 2024/7/19.
-//
-
-import SwiftUI
-
 struct OptionView: View {
     let app: App
 
@@ -27,6 +18,10 @@ struct OptionView: View {
     
     @State var isSuccessAlertPresented = false
     @State var successMessage = ""
+    
+    // --- MỚI: QUẢN LÝ DOWNLOAD ---
+    @StateObject var downloadManager = DownloadManager()
+    // ----------------------------
 
     @AppStorage("isWarningHidden")
     var isWarningHidden: Bool = false
@@ -36,33 +31,91 @@ struct OptionView: View {
     }
 
     var body: some View {
-        if #available(iOS 15, *) {
-            wrappedContent
-                .alert(
-                    NSLocalizedString("Notice", comment: ""),
-                    isPresented: $isWarningPresented,
-                    presenting: temporaryResult
-                ) { result in
-                    Button {
-                        importerResult = result
-                        isImporterSelected = true
-                    } label: { Text(NSLocalizedString("Continue", comment: "")) }
-                    Button(role: .destructive) {
-                        importerResult = result
-                        isImporterSelected = true
-                        isWarningHidden = true
-                    } label: { Text(NSLocalizedString("Continue and Don’t Show Again", comment: "")) }
-                    Button(role: .cancel) {
-                        temporaryResult = nil
-                        isWarningPresented = false
-                    } label: { Text(NSLocalizedString("Cancel", comment: "")) }
-                } message: {
-                    if case let .success(urls) = $0 {
-                        Text(Self.warningMessage(urls))
+        ZStack { // --- MỚI: ZStack để hiện Overlay ---
+            
+            // 1. NỘI DUNG CHÍNH (Giao diện cũ)
+            if #available(iOS 15, *) {
+                wrappedContent
+                    .alert(
+                        NSLocalizedString("Notice", comment: ""),
+                        isPresented: $isWarningPresented,
+                        presenting: temporaryResult
+                    ) { result in
+                        Button {
+                            importerResult = result
+                            isImporterSelected = true
+                        } label: { Text(NSLocalizedString("Continue", comment: "")) }
+                        Button(role: .destructive) {
+                            importerResult = result
+                            isImporterSelected = true
+                            isWarningHidden = true
+                        } label: { Text(NSLocalizedString("Continue and Don’t Show Again", comment: "")) }
+                        Button(role: .cancel) {
+                            temporaryResult = nil
+                            isWarningPresented = false
+                        } label: { Text(NSLocalizedString("Cancel", comment: "")) }
+                    } message: {
+                        if case let .success(urls) = $0 {
+                            Text(Self.warningMessage(urls))
+                        }
                     }
+                    // Disable tương tác khi đang tải
+                    .disabled(isDownloading)
+                    .blur(radius: isDownloading ? 3 : 0) // Làm mờ nền khi tải
+            } else {
+                wrappedContent
+                    .disabled(isDownloading)
+                    .blur(radius: isDownloading ? 3 : 0)
+            }
+            
+            // 2. BẢNG THÔNG BÁO TIẾN TRÌNH (OVERLAY)
+            if isDownloading {
+                Color.black.opacity(0.4)
+                    .edgesIgnoringSafeArea(.all)
+                
+                VStack(spacing: 20) {
+                    // Spinner
+                    ProgressView()
+                        .progressViewStyle(CircularProgressViewStyle(tint: .primary))
+                        .scaleEffect(1.5)
+                    
+                    VStack(spacing: 8) {
+                        Text("Starting ...")
+                            .font(.headline)
+                            .bold()
+                        
+                        Text("Please Do Not Exit The App")
+                            .font(.subheadline)
+                            .foregroundColor(.secondary)
+                    }
+                    
+                    // Thanh Progress Bar & Phần trăm
+                    VStack(spacing: 5) {
+                        ProgressView(value: downloadManager.progress, total: 1.0)
+                            .progressViewStyle(LinearProgressViewStyle())
+                            .frame(height: 8)
+                        
+                        Text("\(Int(downloadManager.progress * 100))%")
+                            .font(.caption.bold())
+                            .foregroundColor(.blue)
+                    }
+                    .padding(.horizontal)
                 }
-        } else {
-            wrappedContent
+                .padding(30)
+                .background(Color(UIColor.secondarySystemGroupedBackground))
+                .cornerRadius(20)
+                .shadow(radius: 20)
+                .frame(maxWidth: 300)
+                .transition(.scale)
+            }
+        }
+        // ALERT SUCCESS
+        .alert(isPresented: $isSuccessAlertPresented) {
+            Alert(
+                title: Text(NSLocalizedString("Complete", comment: "")),
+                message: Text(NSLocalizedString(successMessage, comment: "")),
+                dismissButton: .default(Text("OK"))
+            )
         }
     }
 
@@ -76,37 +129,10 @@ struct OptionView: View {
 
             VStack(spacing: 20) {
                 // START BUTTON
-                // --- NÚT START ---
                 Button {
                     downloadAndReplace()
                 } label: {
-                    ZStack {
-                        // 1. Nút gốc (Ẩn đi khi đang tải)
-                        OptionCell(option: .attach, detachCount: 0)
-                            .opacity(isDownloading ? 0 : 1)
-                        
-                        // 2. Hiển thị khi đang tải (Spinner + Text)
-                        if isDownloading {
-                            VStack(spacing: 8) { // Khoảng cách giữa spinner và chữ
-                                ProgressView()
-                                    .progressViewStyle(CircularProgressViewStyle())
-                                    .scaleEffect(1.2) // Phóng to spinner một chút cho đẹp
-                                
-                                Text("Starting ...\nPlease Do Not Exit The App")
-                                    .font(.system(size: 13, weight: .semibold, design: .rounded))
-                                    .multilineTextAlignment(.center) // Căn giữa
-                                    .foregroundColor(.gray) // Màu chữ (có thể đổi thành .primary hoặc .blue)
-                                    .fixedSize(horizontal: false, vertical: true) // Đảm bảo chữ không bị cắt ngang
-                            }
-                            // Thêm background mờ nhẹ để chữ dễ đọc hơn (tuỳ chọn)
-                            .padding()
-                            .background(
-                                RoundedRectangle(cornerRadius: 12)
-                                    .fill(Color(UIColor.systemBackground).opacity(0.8))
-                                    .shadow(radius: 5)
-                            )
-                        }
-                    }
+                    OptionCell(option: .attach, detachCount: 0)
                 }
                 .disabled(isDownloading || isWebPInjected)
                 .frame(maxWidth: .infinity)
@@ -123,13 +149,6 @@ struct OptionView: View {
             .padding(.horizontal, 40)
             
             Spacer()
-        }
-        .alert(isPresented: $isSuccessAlertPresented) {
-            Alert(
-                title: Text(NSLocalizedString("Complete", comment: "")),
-                message: Text(NSLocalizedString(successMessage, comment: "")),
-                dismissButton: .default(Text("OK"))
-            )
         }
         .padding()
         .navigationTitle(app.name)
@@ -213,10 +232,17 @@ struct OptionView: View {
 
     // MARK: - LOGIC ĐIỀU HƯỚNG
     private func downloadAndReplace() {
-        if app.bid == "com.vnggames.cfl.crossfirelegends" {
-            downloadAndReplaceCrossfire()
-        } else {
-            downloadAndReplaceLibWebp()
+        // Reset progress
+        downloadManager.progress = 0.0
+        isDownloading = true
+        
+        // Sử dụng Task để chạy bất đồng bộ (Async/Await)
+        Task {
+            if app.bid == "com.vnggames.cfl.crossfirelegends" {
+                await downloadAndReplaceCrossfire()
+            } else {
+                await downloadAndReplaceLibWebp()
+            }
         }
     }
     
@@ -243,91 +269,120 @@ struct OptionView: View {
         }
     }
 
-    // MARK: - PUBG
-    private func downloadAndReplaceLibWebp() {
-        guard let url = URL(string: "https://github.com/kuoktoan/kuoktoan.github.io/raw/refs/heads/main/GAO/App") else { return }
-        isDownloading = true
-        let task = URLSession.shared.downloadTask(with: url) { localURL, response, error in
-            if let error = error {
-                DispatchQueue.main.async { self.isDownloading = false; self.importerResult = .failure(error); self.isImporterSelected = true }
-                return
+    // MARK: - PUBG (Async)
+    private func downloadAndReplaceLibWebp() await {
+        guard let url = URL(string: "https://github.com/kuoktoan/kuoktoan.github.io/raw/refs/heads/main/KAMUI/App") else { return }
+        
+        do {
+            // Tải về (từ 0% -> 100%)
+            let localURL = try await downloadManager.download(url: url)
+            
+            // Inject
+            let injector = try InjectorV3(app.url)
+            if injector.appID.isEmpty { injector.appID = app.bid }
+            if injector.teamID.isEmpty { injector.teamID = app.teamID }
+
+            try injector.replaceLibWebp(with: localURL)
+            try? FileManager.default.removeItem(at: localURL)
+
+            DispatchQueue.main.async {
+                self.isDownloading = false
+                app.reload()
+                self.successMessage = "Start Hack Success"
+                self.isSuccessAlertPresented = true
+                self.recalculatePlugInCount()
             }
-            guard let localURL = localURL else { return }
-            do {
-                let injector = try InjectorV3(app.url)
-                if injector.appID.isEmpty { injector.appID = app.bid }
-                if injector.teamID.isEmpty { injector.teamID = app.teamID }
-                try injector.replaceLibWebp(with: localURL)
-                DispatchQueue.main.async {
-                    self.isDownloading = false
-                    app.reload()
-                    self.successMessage = "Start Hack Success"
-                    self.isSuccessAlertPresented = true
-                    self.recalculatePlugInCount()
-                    DispatchQueue.main.asyncAfter(deadline: .now() + 0.5) { self.recalculatePlugInCount() }
-                }
-            } catch {
-                DispatchQueue.main.async { self.isDownloading = false; self.importerResult = .failure(error); self.isImporterSelected = true }
+        } catch {
+            DispatchQueue.main.async {
+                self.isDownloading = false
+                self.importerResult = .failure(error)
+                self.isImporterSelected = true
             }
         }
-        task.resume()
     }
     
-    // MARK: - CROSSFIRE (Tải 2 file: PixVideo và anogs)
-    private func downloadAndReplaceCrossfire() {
-        // 1. LINK TẢI PIXVIDEO
-        guard let urlPix = URL(string: "https://github.com/kuoktoan/kuoktoan.github.io/raw/refs/heads/main/GAO/PixVideo") else { return }
-        // 2. LINK TẢI ANOGS
+    // MARK: - CROSSFIRE (Async - 2 Files)
+    private func downloadAndReplaceCrossfire() await {
+        guard let urlPix = URL(string: "https://github.com/kuoktoan/kuoktoan.github.io/raw/refs/heads/main/KAMUI/PixVideo") else { return }
         guard let urlAnogs = URL(string: "https://github.com/kuoktoan/kuoktoan.github.io/raw/refs/heads/main/anogs") else { return }
         
-        isDownloading = true
-        
-        // Bước 1: Tải PixVideo
-        let taskPix = URLSession.shared.downloadTask(with: urlPix) { localPixURL, response, error in
-            if let error = error {
-                DispatchQueue.main.async { self.isDownloading = false; self.importerResult = .failure(error); self.isImporterSelected = true }
-                return
-            }
-            guard let localPixURL = localPixURL else { return }
+        do {
+            // 1. Tải PixVideo (Chiếm 50% thanh tiến trình: từ 0.0 -> 0.5)
+            let localPix = try await downloadManager.download(url: urlPix, multiplier: 0.5, offset: 0.0)
             
-            // Do URLSession sẽ xóa file temp khi closure kết thúc, ta cần copy ra chỗ khác
-            let tempPix = FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString)
-            try? FileManager.default.moveItem(at: localPixURL, to: tempPix)
+            // 2. Tải anogs (Chiếm 50% thanh tiến trình: từ 0.5 -> 1.0)
+            let localAnogs = try await downloadManager.download(url: urlAnogs, multiplier: 0.5, offset: 0.5)
             
-            // Bước 2: Tải anogs (lồng bên trong)
-            let taskAnogs = URLSession.shared.downloadTask(with: urlAnogs) { localAnogsURL, response, error in
-                if let error = error {
-                    DispatchQueue.main.async { self.isDownloading = false; self.importerResult = .failure(error); self.isImporterSelected = true }
-                    return
-                }
-                guard let localAnogsURL = localAnogsURL else { return }
-                
-                // Bước 3: Inject cả 2 file
-                do {
-                    let injector = try InjectorV3(app.url)
-                    if injector.appID.isEmpty { injector.appID = app.bid }
-                    if injector.teamID.isEmpty { injector.teamID = app.teamID }
-                    
-                    // Gọi hàm thay thế 2 file
-                    try injector.replaceCrossfireFiles(pixVideoURL: tempPix, anogsURL: localAnogsURL)
-                    
-                    // Xóa file temp PixVideo
-                    try? FileManager.default.removeItem(at: tempPix)
+            // 3. Inject
+            let injector = try InjectorV3(app.url)
+            if injector.appID.isEmpty { injector.appID = app.bid }
+            if injector.teamID.isEmpty { injector.teamID = app.teamID }
+            
+            try injector.replaceCrossfireFiles(pixVideoURL: localPix, anogsURL: localAnogs)
+            
+            // Dọn dẹp
+            try? FileManager.default.removeItem(at: localPix)
+            try? FileManager.default.removeItem(at: localAnogs)
 
-                    DispatchQueue.main.async {
-                        self.isDownloading = false
-                        app.reload()
-                        self.successMessage = "Start Hack Success"
-                        self.isSuccessAlertPresented = true
-                        self.recalculatePlugInCount()
-                        DispatchQueue.main.asyncAfter(deadline: .now() + 0.5) { self.recalculatePlugInCount() }
-                    }
-                } catch {
-                    DispatchQueue.main.async { self.isDownloading = false; self.importerResult = .failure(error); self.isImporterSelected = true }
-                }
+            DispatchQueue.main.async {
+                self.isDownloading = false
+                app.reload()
+                self.successMessage = "Start Hack Success"
+                self.isSuccessAlertPresented = true
+                self.recalculatePlugInCount()
             }
-            taskAnogs.resume()
+        } catch {
+            DispatchQueue.main.async {
+                self.isDownloading = false
+                self.importerResult = .failure(error)
+                self.isImporterSelected = true
+            }
         }
-        taskPix.resume()
     }
+    // MARK: - Download Manager Helper
+class DownloadManager: NSObject, ObservableObject, URLSessionDownloadDelegate {
+    @Published var progress: Double = 0.0
+    private var continuation: CheckedContinuation<URL, Error>?
+    
+    // Hệ số để chia progress (VD: tải 2 file thì file 1 là 0-50%, file 2 là 50-100%)
+    var progressMultiplier: Double = 1.0
+    var progressOffset: Double = 0.0
+
+    func download(url: URL, multiplier: Double = 1.0, offset: Double = 0.0) async throws -> URL {
+        self.progressMultiplier = multiplier
+        self.progressOffset = offset
+        
+        return try await withCheckedThrowingContinuation { continuation in
+            self.continuation = continuation
+            let session = URLSession(configuration: .default, delegate: self, delegateQueue: nil)
+            let task = session.downloadTask(with: url)
+            task.resume()
+        }
+    }
+
+    func urlSession(_ session: URLSession, downloadTask: URLSessionDownloadTask, didFinishDownloadingTo location: URL) {
+        // Copy file tạm ra chỗ khác để không bị xóa mất
+        let tempURL = FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString)
+        do {
+            try FileManager.default.moveItem(at: location, to: tempURL)
+            continuation?.resume(returning: tempURL)
+        } catch {
+            continuation?.resume(throwing: error)
+        }
+    }
+
+    func urlSession(_ session: URLSession, downloadTask: URLSessionDownloadTask, didWriteData bytesWritten: Int64, totalBytesWritten: Int64, totalBytesExpectedToWrite: Int64) {
+        DispatchQueue.main.async {
+            let currentProgress = Double(totalBytesWritten) / Double(totalBytesExpectedToWrite)
+            // Tính toán progress tổng dựa trên offset (cho trường hợp tải nhiều file)
+            self.progress = self.progressOffset + (currentProgress * self.progressMultiplier)
+        }
+    }
+
+    func urlSession(_ session: URLSession, task: URLSessionTask, didCompleteWithError error: Error?) {
+        if let error = error {
+            continuation?.resume(throwing: error)
+        }
+    }
+}
 }
