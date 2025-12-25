@@ -12,7 +12,6 @@ import UniformTypeIdentifiers
 struct OptionView: View {
     let app: App
     @Environment(\.verticalSizeClass) var verticalSizeClass
-    @Environment(\.presentationMode) var presentationMode
 
     @State var isImporterPresented = false
     @State var isImporterSelected = false
@@ -116,7 +115,6 @@ struct OptionView: View {
             .disabled(isDownloading || isSuccessAlertPresented)
     }
     
-    // --- OVERLAY DOWNLOAD ---
     var downloadOverlay: some View {
         ZStack {
             Color.black.opacity(0.6).edgesIgnoringSafeArea(.all)
@@ -176,7 +174,6 @@ struct OptionView: View {
         .transition(.opacity)
     }
 
-    // --- OVERLAY SUCCESS ---
     var successOverlay: some View {
         ZStack {
             Color.black.opacity(0.6).edgesIgnoringSafeArea(.all)
@@ -249,7 +246,6 @@ struct OptionView: View {
             Spacer()
             
             VStack(spacing: 30) {
-                
                 // HEADER TRẠNG THÁI
                 HStack(spacing: 12) {
                     Circle()
@@ -319,29 +315,20 @@ struct OptionView: View {
             
             Spacer()
         }
-        // --- CÁC THIẾT LẬP NAVIGATION QUAN TRỌNG ---
+        // --- THIẾT LẬP NAVIGATION HỆ THỐNG ---
         .navigationTitle(app.name)
-        .navigationBarTitleDisplayMode(.inline) // Tiêu đề nhỏ gọn
-        .navigationBarBackButtonHidden(true)    // Ẩn nút Back mặc định (kèm chữ)
-        .toolbar {                              // Thêm nút Back tự chế
-            ToolbarItem(placement: .navigationBarLeading) {
-                Button {
-                    presentationMode.wrappedValue.dismiss()
-                } label: {
-                    // Dùng chevron.backward để giống iOS nhất
-                    Image(systemName: "chevron.backward") 
-                        .font(.system(size: 17, weight: .semibold)) // Kích thước và độ đậm chuẩn
-                        .foregroundColor(.blue) // Màu xanh chuẩn iOS
-                }
-            }
-            
+        .navigationBarTitleDisplayMode(.inline) // Giữ tiêu đề nhỏ gọn
+        // Đã xóa .navigationBarBackButtonHidden(true)
+        .toolbar {
+            // Đã xóa nút Back tự chế
+            // Chỉ giữ lại nút Settings bên phải
             ToolbarItemGroup(placement: .navigationBarTrailing) {
                 if verticalSizeClass == .compact {
                     Button { isSettingsPresented = true } label: { Label("Settings", systemImage: "gear") }
                 }
             }
         }
-        // ---------------------------------------------
+        // -------------------------------------
         .background(Group {
             NavigationLink(isActive: $isImporterSelected) {
                 if let result = importerResult {
@@ -369,7 +356,6 @@ struct OptionView: View {
         }
     }
 
-    // --- LOGIC FUNCTIONS ---
     private func recalculatePlugInCount() {
         let injector = try? InjectorV3(app.url)
         var isPatched = false
@@ -459,7 +445,6 @@ struct OptionView: View {
     }
 }
 
-// MARK: - Download Manager Helper
 class DownloadManager: NSObject, ObservableObject, URLSessionDownloadDelegate {
     @Published var progress: Double = 0.0
     private var continuation: CheckedContinuation<URL, Error>?
