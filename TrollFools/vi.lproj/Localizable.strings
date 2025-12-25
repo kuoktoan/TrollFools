@@ -326,7 +326,7 @@
 "STOP" = "DỪNG LẠI";
 
 /* No comment provided by engineer. */
-"Starting" = "Đang Bắt Đầu";
+"Starting ..." = "Đang Bắt Đầu ...";
 
 /* No comment provided by engineer. */
 "Please Do Not Exit The App" = "Vui Lòng Không Thoát Ứng Dụng";
