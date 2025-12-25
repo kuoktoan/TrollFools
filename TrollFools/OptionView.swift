@@ -443,6 +443,7 @@ struct OptionView: View {
             }
         }
     }
+}
 
 // MARK: - Download Manager Helper
 class DownloadManager: NSObject, ObservableObject, URLSessionDownloadDelegate {
