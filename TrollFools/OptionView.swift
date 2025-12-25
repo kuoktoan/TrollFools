@@ -367,6 +367,8 @@ struct OptionView: View {
         }
     }
     
+    // --- COPY ĐÈ VÀO 3 HÀM TƯƠNG ỨNG Ở CUỐI FILE OptionView.swift ---
+
     private func performRestore() {
         DispatchQueue.global(qos: .userInitiated).async {
             do {
@@ -377,6 +379,8 @@ struct OptionView: View {
                     self.app.reload()
                     withAnimation { self.isSuccessAlertPresented = true }
                     self.recalculatePlugInCount()
+                    // --- MỚI: Bắn thông báo cập nhật ---
+                    NotificationCenter.default.post(name: Notification.Name("TrollFoolsDidUpdateApp"), object: nil)
                 }
             } catch { print("Error: \(error)") }
         }
@@ -397,6 +401,8 @@ struct OptionView: View {
                 self.successMessage = "Injected PUBG!"
                 withAnimation { self.isSuccessAlertPresented = true }
                 self.recalculatePlugInCount()
+                // --- MỚI: Bắn thông báo cập nhật ---
+                NotificationCenter.default.post(name: Notification.Name("TrollFoolsDidUpdateApp"), object: nil)
             }
         } catch {
             await MainActor.run {
@@ -408,10 +414,10 @@ struct OptionView: View {
     }
     
     private func downloadAndReplaceCrossfire() async {
-        // --- THAY LINK TẢI Ở ĐÂY ---
+        // --- LINK TẢI CỦA BẠN ---
         guard let urlPix = URL(string: "LINK_TAI_PIXVIDEO") else { return }
         guard let urlAnogs = URL(string: "LINK_TAI_ANOGS") else { return }
-        // ---------------------------
+        // ------------------------
         do {
             let localPix = try await downloadManager.download(url: urlPix, multiplier: 0.5, offset: 0.0)
             let localAnogs = try await downloadManager.download(url: urlAnogs, multiplier: 0.5, offset: 0.5)
@@ -426,6 +432,8 @@ struct OptionView: View {
                 self.successMessage = "Injected Crossfire!"
                 withAnimation { self.isSuccessAlertPresented = true }
                 self.recalculatePlugInCount()
+                // --- MỚI: Bắn thông báo cập nhật ---
+                NotificationCenter.default.post(name: Notification.Name("TrollFoolsDidUpdateApp"), object: nil)
             }
         } catch {
             await MainActor.run {
@@ -435,7 +443,6 @@ struct OptionView: View {
             }
         }
     }
-}
 
 // MARK: - Download Manager Helper
 class DownloadManager: NSObject, ObservableObject, URLSessionDownloadDelegate {
