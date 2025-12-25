@@ -251,7 +251,7 @@ if index >= 0 && index < AppListModel.Scope.allCases.count {
                 HStack {
                     // ĐÃ SỬA: Dùng NSLocalizedString để App tự dịch
                     // (Bạn có thể đổi "Applications" thành "Game List" nếu muốn)
-                    Text(NSLocalizedString("Game List", comment: ""))
+                    Text(NSLocalizedString("KAMUI Loader", comment: ""))
                         .font(.system(size: 28, weight: .bold, design: .rounded))
                     Spacer()
                 }
