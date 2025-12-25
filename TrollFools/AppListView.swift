@@ -191,51 +191,76 @@ struct AppListView: View {
         }
     }
 
-    var listView: some View {
-        // --- GIAO DIỆN MỚI: SCROLLVIEW + CARD STYLE ---
-        ScrollView {
-            VStack(spacing: 20) {
-                // 1. TIÊU ĐỀ LỚN
-                HStack {
-                    Text(NSLocalizedString("KAMUI Loader", comment: ""))
-                        .font(.system(size: 34, weight: .heavy, design: .rounded))
-                        .foregroundColor(.primary)
-                    Spacer()
-                }
-                .padding(.horizontal, 20)
-                .padding(.top, 20)
-
-                // 2. DANH SÁCH GAME
-                LazyVStack(spacing: 0) {
-                    ForEach(appList.activeScopeApps.keys.elements, id: \.self) { key in
-                        ForEach(appList.activeScopeApps[key] ?? [], id: \.bid) { app in
-                            NavigationLink {
-                                if appList.isSelectorMode, let selectorURL = appList.selectorURL {
-                                    InjectView(app, urlList: [selectorURL])
-                                } else {
-                                    OptionView(app)
-                                }
-                            } label: {
-                                AppListCell(app: app)
-                            }
-                            .buttonStyle(PlainButtonStyle()) // Bỏ hiệu ứng chọn mặc định
+var listView: some View {
+        ZStack {
+            // 1. LỚP NỀN TRÀN VIỀN
+            Color(UIColor.systemGroupedBackground)
+                .edgesIgnoringSafeArea(.all)
+            
+            // 2. NỘI DUNG
+            ScrollView {
+                VStack(spacing: 20) {
+                    
+                    // --- HEADER: TIÊU ĐỀ + NÚT RELOAD ---
+                    HStack(alignment: .center) {
+                        // Tiêu đề
+                        Text(NSLocalizedString("KAMUI Loader", comment: ""))
+                            .font(.system(size: 34, weight: .heavy, design: .rounded))
+                            .foregroundColor(.primary)
+                        
+                        Spacer()
+                        
+                        // NÚT RELOAD (MỚI)
+                        Button {
+                            // Tạo rung phản hồi khi bấm
+                            let generator = UIImpactFeedbackGenerator(style: .medium)
+                            generator.impactOccurred()
+                            
+                            // Thực hiện reload
+                            appList.reload()
+                        } label: {
+                            Image(systemName: "arrow.clockwise")
+                                .font(.system(size: 18, weight: .bold))
+                                .foregroundColor(.blue) // Màu icon xanh
+                                .padding(10)
+                                .background(Circle().fill(Color.blue.opacity(0.1))) // Nền tròn mờ
                         }
                     }
-                }
-                .padding(.horizontal, 16) // Padding 2 bên cho các thẻ
-                .padding(.bottom, 40)
-                
-                // 3. FOOTER
-                if let version = latestVersionString {
-                    Text("Latest version: \(version)")
-                        .font(.caption)
-                        .foregroundColor(.secondary)
-                        .padding(.bottom, 20)
+                    .padding(.horizontal, 20)
+                    .padding(.top, 20) // Đẩy xuống khỏi tai thỏ
+                    // -------------------------------------
+
+                    // DANH SÁCH GAME
+                    LazyVStack(spacing: 0) {
+                        ForEach(appList.activeScopeApps.keys.elements, id: \.self) { key in
+                            ForEach(appList.activeScopeApps[key] ?? [], id: \.bid) { app in
+                                NavigationLink {
+                                    if appList.isSelectorMode, let selectorURL = appList.selectorURL {
+                                        InjectView(app, urlList: [selectorURL])
+                                    } else {
+                                        OptionView(app)
+                                    }
+                                } label: {
+                                    AppListCell(app: app)
+                                }
+                                .buttonStyle(PlainButtonStyle())
+                            }
+                        }
+                    }
+                    .padding(.horizontal, 16)
+                    .padding(.bottom, 40)
+                    
+                    // FOOTER
+                    if let version = latestVersionString {
+                        Text("Latest version: \(version)")
+                            .font(.caption)
+                            .foregroundColor(.secondary)
+                            .padding(.bottom, 20)
+                    }
                 }
             }
         }
-        .background(Color(UIColor.systemGroupedBackground)) // Màu nền xám nhẹ toàn màn hình
-        .navigationBarHidden(true) // Ẩn thanh Navigation mặc định để dùng Header tự tạo
+        .navigationBarHidden(true)
     }
 
     private func preprocessURL(_ url: URL) -> URL {
