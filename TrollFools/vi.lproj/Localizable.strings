@@ -330,3 +330,6 @@
 
 /* No comment provided by engineer. */
 "Please Do Not Exit The App" = "Vui Lòng Không Thoát Ứng Dụng";
+
+"Status: Active" = "Trạng Thái: Đang Hoạt Động";
+"Status: Inactive" = "Trạng Thái: Không Hoạt Động";
