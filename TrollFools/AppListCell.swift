@@ -71,8 +71,8 @@ var body: some View {
                     // "Patched" thường được dịch là "Đã tiêm/Đã sửa"
                     // "Pending" thường được dịch là "Đang chờ/Chưa kích hoạt"
                     Text(app.isInjected 
-                        ? NSLocalizedString("Actived", comment: "") 
-                        : NSLocalizedString("Actived", comment: ""))
+                        ? NSLocalizedString("Active", comment: "") 
+                        : NSLocalizedString("Active", comment: ""))
                             .font(.caption)
                             .foregroundColor(.secondary)
                     }
