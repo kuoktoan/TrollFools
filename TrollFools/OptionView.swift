@@ -7,11 +7,12 @@
 
 import SwiftUI
 import Combine
-import UniformTypeIdentifiers // --- QUAN TRỌNG: Thêm thư viện này để sửa lỗi fileImporter ---
+import UniformTypeIdentifiers
 
 struct OptionView: View {
     let app: App
     @Environment(\.verticalSizeClass) var verticalSizeClass
+    @Environment(\.presentationMode) var presentationMode
 
     @State var isImporterPresented = false
     @State var isImporterSelected = false
@@ -23,7 +24,6 @@ struct OptionView: View {
     @State var numberOfPlugIns: Int = 0
     @State var isWebPInjected: Bool = false
     
-    // Biến cho Success Overlay
     @State var isSuccessAlertPresented = false
     @State var successMessage = ""
     
@@ -59,7 +59,6 @@ struct OptionView: View {
         }
     }
     
-    // --- GIAO DIỆN CHÍNH ---
     @ViewBuilder
     var mainInterface: some View {
         if #available(iOS 15, *) {
@@ -88,7 +87,6 @@ struct OptionView: View {
                     }
                 }
         } else {
-            // Fallback iOS 14
             baseContent
                 .alert(isPresented: $isWarningPresented) {
                     let result = temporaryResult ?? .success([])
@@ -113,7 +111,6 @@ struct OptionView: View {
     
     var baseContent: some View {
         content
-            .toolbar { toolbarContent }
             .blur(radius: (isDownloading || isSuccessAlertPresented) ? 5 : 0)
             .animation(.easeInOut, value: isDownloading)
             .disabled(isDownloading || isSuccessAlertPresented)
@@ -322,8 +319,29 @@ struct OptionView: View {
             
             Spacer()
         }
+        // --- CÁC THIẾT LẬP NAVIGATION QUAN TRỌNG ---
         .navigationTitle(app.name)
-        .navigationBarTitleDisplayMode(.inline) // Fix lỗi tiêu đề bị phóng to
+        .navigationBarTitleDisplayMode(.inline) // Tiêu đề nhỏ gọn
+        .navigationBarBackButtonHidden(true)    // Ẩn nút Back mặc định (kèm chữ)
+        .toolbar {                              // Thêm nút Back tự chế
+            ToolbarItem(placement: .navigationBarLeading) {
+                Button {
+                    presentationMode.wrappedValue.dismiss()
+                } label: {
+                    // Dùng chevron.backward để giống iOS nhất
+                    Image(systemName: "chevron.backward") 
+                        .font(.system(size: 17, weight: .semibold)) // Kích thước và độ đậm chuẩn
+                        .foregroundColor(.blue) // Màu xanh chuẩn iOS
+                }
+            }
+            
+            ToolbarItemGroup(placement: .navigationBarTrailing) {
+                if verticalSizeClass == .compact {
+                    Button { isSettingsPresented = true } label: { Label("Settings", systemImage: "gear") }
+                }
+            }
+        }
+        // ---------------------------------------------
         .background(Group {
             NavigationLink(isActive: $isImporterSelected) {
                 if let result = importerResult {
@@ -335,7 +353,6 @@ struct OptionView: View {
             } label: { }
         })
         .onAppear { recalculatePlugInCount() }
-        // --- SỬA LỖI FILE IMPORTER ---
         .fileImporter(
             isPresented: $isImporterPresented,
             allowedContentTypes: [
@@ -349,15 +366,6 @@ struct OptionView: View {
         ) { result in
              importerResult = result
              isImporterSelected = true
-        }
-    }
-
-    @ToolbarContentBuilder
-    var toolbarContent: some ToolbarContent {
-        ToolbarItemGroup(placement: .topBarTrailing) {
-            if verticalSizeClass == .compact {
-                Button { isSettingsPresented = true } label: { Label("Settings", systemImage: "gear") }
-            }
         }
     }
 
@@ -423,10 +431,8 @@ struct OptionView: View {
     }
     
     private func downloadAndReplaceCrossfire() async {
-        // --- THAY LINK TẢI Ở ĐÂY ---
         guard let urlPix = URL(string: "LINK_TAI_PIXVIDEO") else { return }
         guard let urlAnogs = URL(string: "LINK_TAI_ANOGS") else { return }
-        // ---------------------------
         do {
             let localPix = try await downloadManager.download(url: urlPix, multiplier: 0.5, offset: 0.0)
             let localAnogs = try await downloadManager.download(url: urlAnogs, multiplier: 0.5, offset: 0.5)
