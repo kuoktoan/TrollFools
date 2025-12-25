@@ -6,37 +6,33 @@
 //
 
 import SwiftUI
+import Combine
 
 struct AppListCell: View {
     let app: App
     @EnvironmentObject var appList: AppListModel
+    
+    @State private var refreshID = UUID()
 
-    // --- LOGIC KIỂM TRA TRẠNG THÁI CHÍNH XÁC ---
     var isInjected: Bool {
-        // 1. Tạo Injector instance
         guard let injector = try? InjectorV3(app.url) else { return false }
 
-        // 2. Kiểm tra riêng cho Crossfire
         if app.bid == "com.vnggames.cfl.crossfirelegends" {
-            // Check xem file gốc đã được backup chưa (nếu có backup tức là đang dùng file mod)
             return injector.isCrossfirePatched
         }
 
-        // 3. Kiểm tra riêng cho PUBG (Tất cả các phiên bản)
         if AppListModel.pubgIds.contains(app.bid) {
-            // Check xem libwebp gốc đã được backup chưa
             return injector.isLibWebpReplaced
         }
 
-        // 4. Fallback cho các app khác (nếu có)
         return injector.hasInjectedAsset
     }
-    // ---------------------------------------------
 
     var body: some View {
         HStack(spacing: 16) {
-            // 1. ICON APP
-            if let icon = UIImage._applicationIconImage(forBundleIdentifier: app.bid, format: 0, scale: UIScreen.main.scale) {
+            // 1. ICON APP (SỬA LỖI MỜ ẢNH)
+            // format: 12 là icon kích thước lớn nhất (High Res)
+            if let icon = UIImage._applicationIconImage(forBundleIdentifier: app.bid, format: 12, scale: UIScreen.main.scale) {
                 Image(uiImage: icon)
                     .resizable()
                     .aspectRatio(contentMode: .fit)
@@ -50,15 +46,16 @@ struct AppListCell: View {
             }
 
             VStack(alignment: .leading, spacing: 6) {
-                // 2. TÊN APP
+                // 2. TÊN APP (SỬA LỖI CẮT CHỮ)
                 Text(app.name)
                     .font(.system(size: 17, weight: .bold, design: .rounded))
                     .foregroundColor(.primary)
-                    .lineLimit(1)
+                    .lineLimit(2) // Cho phép xuống dòng tối đa 2 dòng
+                    .minimumScaleFactor(0.8) // Nếu vẫn dài, tự động thu nhỏ chữ xuống 80%
+                    .fixedSize(horizontal: false, vertical: true) // Mở rộng chiều cao nếu cần
 
                 // 3. BADGES
                 HStack(spacing: 8) {
-                    // Badge Version
                     if let version = app.version {
                         Text("v\(version)")
                             .font(.system(size: 10, weight: .bold))
@@ -71,7 +68,6 @@ struct AppListCell: View {
                             .clipShape(Capsule())
                     }
                     
-                    // Badge ACTIVE (Chỉ hiện khi isInjected = true)
                     if isInjected {
                         Text("ACTIVE")
                             .font(.system(size: 10, weight: .bold))
@@ -99,5 +95,9 @@ struct AppListCell: View {
         .cornerRadius(20)
         .shadow(color: Color.black.opacity(0.08), radius: 8, x: 0, y: 4)
         .padding(.vertical, 6)
+        .id(refreshID)
+        .onReceive(NotificationCenter.default.publisher(for: Notification.Name("TrollFoolsDidUpdateApp"))) { _ in
+            self.refreshID = UUID()
+        }
     }
 }
