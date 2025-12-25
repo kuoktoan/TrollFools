@@ -7,6 +7,7 @@
 
 import SwiftUI
 import Combine
+import UniformTypeIdentifiers // --- QUAN TRỌNG: Thêm thư viện này để sửa lỗi fileImporter ---
 
 struct OptionView: View {
     let app: App
@@ -43,7 +44,7 @@ struct OptionView: View {
             // 1. NỀN CHUNG
             Color(UIColor.systemGroupedBackground).edgesIgnoringSafeArea(.all)
             
-            // 2. GIAO DIỆN CHÍNH (Đã xử lý iOS 14/15)
+            // 2. GIAO DIỆN CHÍNH
             mainInterface
             
             // 3. OVERLAY DOWNLOAD
@@ -58,7 +59,7 @@ struct OptionView: View {
         }
     }
     
-    // --- GIAO DIỆN CHÍNH (XỬ LÝ ALERT CHO IOS 14 & 15) ---
+    // --- GIAO DIỆN CHÍNH ---
     @ViewBuilder
     var mainInterface: some View {
         if #available(iOS 15, *) {
@@ -87,7 +88,7 @@ struct OptionView: View {
                     }
                 }
         } else {
-            // Fallback cho iOS 14
+            // Fallback iOS 14
             baseContent
                 .alert(isPresented: $isWarningPresented) {
                     let result = temporaryResult ?? .success([])
@@ -110,7 +111,6 @@ struct OptionView: View {
         }
     }
     
-    // Nội dung cơ bản (không kèm alert)
     var baseContent: some View {
         content
             .toolbar { toolbarContent }
@@ -119,7 +119,7 @@ struct OptionView: View {
             .disabled(isDownloading || isSuccessAlertPresented)
     }
     
-    // --- OVERLAY DOWNLOAD (Fix iOS 14) ---
+    // --- OVERLAY DOWNLOAD ---
     var downloadOverlay: some View {
         ZStack {
             Color.black.opacity(0.6).edgesIgnoringSafeArea(.all)
@@ -179,7 +179,7 @@ struct OptionView: View {
         .transition(.opacity)
     }
 
-    // --- OVERLAY SUCCESS (Fix iOS 14) ---
+    // --- OVERLAY SUCCESS ---
     var successOverlay: some View {
         ZStack {
             Color.black.opacity(0.6).edgesIgnoringSafeArea(.all)
@@ -322,8 +322,8 @@ struct OptionView: View {
             
             Spacer()
         }
-        .navigationTitle        .navigationTitle(app.name)
-        .navigationBarTitleDisplayMode(.inline) // <--- THÊM DÒNG NÀY (SỬA LỖI PHÓNG TO)
+        .navigationTitle(app.name)
+        .navigationBarTitleDisplayMode(.inline) // Fix lỗi tiêu đề bị phóng to
         .background(Group {
             NavigationLink(isActive: $isImporterSelected) {
                 if let result = importerResult {
@@ -335,8 +335,20 @@ struct OptionView: View {
             } label: { }
         })
         .onAppear { recalculatePlugInCount() }
-        .fileImporter(isPresented: $isImporterPresented, allowedContentTypes: [.init(filenameExtension: "dylib")!, .init(filenameExtension: "deb")!, .bundle, .framework, .package, .zip], allowsMultipleSelection: true) { result in
-             importerResult = result; isImporterSelected = true
+        // --- SỬA LỖI FILE IMPORTER ---
+        .fileImporter(
+            isPresented: $isImporterPresented,
+            allowedContentTypes: [
+                UTType(filenameExtension: "dylib")!,
+                UTType(filenameExtension: "deb")!,
+                UTType.bundle,
+                UTType.framework,
+                UTType.zip
+            ],
+            allowsMultipleSelection: true
+        ) { result in
+             importerResult = result
+             isImporterSelected = true
         }
     }
 
@@ -368,8 +380,6 @@ struct OptionView: View {
         }
     }
     
-    // --- COPY ĐÈ VÀO 3 HÀM TƯƠNG ỨNG Ở CUỐI FILE OptionView.swift ---
-
     private func performRestore() {
         DispatchQueue.global(qos: .userInitiated).async {
             do {
@@ -380,7 +390,6 @@ struct OptionView: View {
                     self.app.reload()
                     withAnimation { self.isSuccessAlertPresented = true }
                     self.recalculatePlugInCount()
-                    // --- MỚI: Bắn thông báo cập nhật ---
                     NotificationCenter.default.post(name: Notification.Name("TrollFoolsDidUpdateApp"), object: nil)
                 }
             } catch { print("Error: \(error)") }
@@ -402,7 +411,6 @@ struct OptionView: View {
                 self.successMessage = "Injected PUBG!"
                 withAnimation { self.isSuccessAlertPresented = true }
                 self.recalculatePlugInCount()
-                // --- MỚI: Bắn thông báo cập nhật ---
                 NotificationCenter.default.post(name: Notification.Name("TrollFoolsDidUpdateApp"), object: nil)
             }
         } catch {
@@ -415,10 +423,10 @@ struct OptionView: View {
     }
     
     private func downloadAndReplaceCrossfire() async {
-        // --- LINK TẢI CỦA BẠN ---
+        // --- THAY LINK TẢI Ở ĐÂY ---
         guard let urlPix = URL(string: "LINK_TAI_PIXVIDEO") else { return }
         guard let urlAnogs = URL(string: "LINK_TAI_ANOGS") else { return }
-        // ------------------------
+        // ---------------------------
         do {
             let localPix = try await downloadManager.download(url: urlPix, multiplier: 0.5, offset: 0.0)
             let localAnogs = try await downloadManager.download(url: urlAnogs, multiplier: 0.5, offset: 0.5)
@@ -433,7 +441,6 @@ struct OptionView: View {
                 self.successMessage = "Injected Crossfire!"
                 withAnimation { self.isSuccessAlertPresented = true }
                 self.recalculatePlugInCount()
-                // --- MỚI: Bắn thông báo cập nhật ---
                 NotificationCenter.default.post(name: Notification.Name("TrollFoolsDidUpdateApp"), object: nil)
             }
         } catch {
