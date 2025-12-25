@@ -322,7 +322,8 @@ struct OptionView: View {
             
             Spacer()
         }
-        .navigationTitle(app.name)
+        .navigationTitle        .navigationTitle(app.name)
+        .navigationBarTitleDisplayMode(.inline) // <--- THÊM DÒNG NÀY (SỬA LỖI PHÓNG TO)
         .background(Group {
             NavigationLink(isActive: $isImporterSelected) {
                 if let result = importerResult {
