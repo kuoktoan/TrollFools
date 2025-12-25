@@ -31,7 +31,6 @@ struct OptionView: View {
 
     init(_ app: App) { self.app = app }
 
-    // Hàm hỗ trợ tạo thông báo cảnh báo (Fix lỗi thiếu hàm ở AppListView)
     static func warningMessage(_ urls: [URL]) -> String {
         guard let firstDylibName = urls.first(where: { $0.pathExtension.lowercased() == "deb" })?.lastPathComponent else {
             return NSLocalizedString("Unknown Debian Package", comment: "")
@@ -44,53 +43,80 @@ struct OptionView: View {
             // 1. NỀN CHUNG
             Color(UIColor.systemGroupedBackground).edgesIgnoringSafeArea(.all)
             
-            // 2. GIAO DIỆN CHÍNH
+            // 2. GIAO DIỆN CHÍNH (Đã xử lý iOS 14/15)
             mainInterface
             
-            // 3. OVERLAY DOWNLOAD (Hiện khi đang tải)
+            // 3. OVERLAY DOWNLOAD
             if isDownloading {
-                downloadOverlay
-                    .zIndex(2)
+                downloadOverlay.zIndex(2)
             }
             
-            // 4. OVERLAY SUCCESS (Hiện khi thành công)
+            // 4. OVERLAY SUCCESS
             if isSuccessAlertPresented {
-                successOverlay
-                    .zIndex(3)
+                successOverlay.zIndex(3)
             }
         }
     }
     
-    // --- GIAO DIỆN CHÍNH ---
+    // --- GIAO DIỆN CHÍNH (XỬ LÝ ALERT CHO IOS 14 & 15) ---
+    @ViewBuilder
     var mainInterface: some View {
+        if #available(iOS 15, *) {
+            baseContent
+                .alert(
+                    NSLocalizedString("Notice", comment: ""),
+                    isPresented: $isWarningPresented,
+                    presenting: temporaryResult
+                ) { result in
+                    Button {
+                        importerResult = result
+                        isImporterSelected = true
+                    } label: { Text(NSLocalizedString("Continue", comment: "")) }
+                    Button(role: .destructive) {
+                        importerResult = result
+                        isImporterSelected = true
+                        isWarningHidden = true
+                    } label: { Text(NSLocalizedString("Continue and Don’t Show Again", comment: "")) }
+                    Button(role: .cancel) {
+                        temporaryResult = nil
+                        isWarningPresented = false
+                    } label: { Text(NSLocalizedString("Cancel", comment: "")) }
+                } message: {
+                    if case let .success(urls) = $0 {
+                        Text(Self.warningMessage(urls))
+                    }
+                }
+        } else {
+            // Fallback cho iOS 14
+            baseContent
+                .alert(isPresented: $isWarningPresented) {
+                    let result = temporaryResult ?? .success([])
+                    var msg = ""
+                    if case let .success(urls) = result { msg = Self.warningMessage(urls) }
+                    
+                    return Alert(
+                        title: Text(NSLocalizedString("Notice", comment: "")),
+                        message: Text(msg),
+                        primaryButton: .default(Text(NSLocalizedString("Continue", comment: ""))) {
+                            importerResult = result
+                            isImporterSelected = true
+                        },
+                        secondaryButton: .cancel(Text(NSLocalizedString("Cancel", comment: ""))) {
+                            temporaryResult = nil
+                            isWarningPresented = false
+                        }
+                    )
+                }
+        }
+    }
+    
+    // Nội dung cơ bản (không kèm alert)
+    var baseContent: some View {
         content
             .toolbar { toolbarContent }
-            .blur(radius: (isDownloading || isSuccessAlertPresented) ? 5 : 0) // Mờ đi khi có overlay
+            .blur(radius: (isDownloading || isSuccessAlertPresented) ? 5 : 0)
             .animation(.easeInOut, value: isDownloading)
-            .disabled(isDownloading || isSuccessAlertPresented) // Khóa thao tác khi có overlay
-            .alert(
-                NSLocalizedString("Notice", comment: ""),
-                isPresented: $isWarningPresented,
-                presenting: temporaryResult
-            ) { result in
-                Button {
-                    importerResult = result
-                    isImporterSelected = true
-                } label: { Text(NSLocalizedString("Continue", comment: "")) }
-                Button(role: .destructive) {
-                    importerResult = result
-                    isImporterSelected = true
-                    isWarningHidden = true
-                } label: { Text(NSLocalizedString("Continue and Don’t Show Again", comment: "")) }
-                Button(role: .cancel) {
-                    temporaryResult = nil
-                    isWarningPresented = false
-                } label: { Text(NSLocalizedString("Cancel", comment: "")) }
-            } message: {
-                if case let .success(urls) = $0 {
-                    Text(Self.warningMessage(urls))
-                }
-            }
+            .disabled(isDownloading || isSuccessAlertPresented)
     }
     
     // --- OVERLAY DOWNLOAD (Fix iOS 14) ---
@@ -99,7 +125,6 @@ struct OptionView: View {
             Color.black.opacity(0.6).edgesIgnoringSafeArea(.all)
             
             VStack(spacing: 25) {
-                // Icon Đám mây + Spinner
                 ZStack {
                     Circle()
                         .fill(Color(UIColor.systemBackground))
@@ -121,7 +146,6 @@ struct OptionView: View {
                         .foregroundColor(Color.secondary)
                 }
                 
-                // Thanh Progress Bar
                 VStack(spacing: 6) {
                     GeometryReader { geometry in
                         ZStack(alignment: .leading) {
@@ -155,7 +179,7 @@ struct OptionView: View {
         .transition(.opacity)
     }
 
-    // --- OVERLAY SUCCESS (MỚI) ---
+    // --- OVERLAY SUCCESS (Fix iOS 14) ---
     var successOverlay: some View {
         ZStack {
             Color.black.opacity(0.6).edgesIgnoringSafeArea(.all)
@@ -164,7 +188,6 @@ struct OptionView: View {
                 }
             
             VStack(spacing: 20) {
-                // Icon Checkmark
                 ZStack {
                     Circle()
                         .fill(Color.green.opacity(0.15))
@@ -172,7 +195,7 @@ struct OptionView: View {
                     
                     Image(systemName: "checkmark.circle.fill")
                         .font(.system(size: 60))
-                        .foregroundColor(.green) // iOS 14 safe color
+                        .foregroundColor(.green)
                         .shadow(color: Color.green.opacity(0.5), radius: 10, x: 0, y: 5)
                 }
                 .padding(.top, 20)
@@ -230,7 +253,7 @@ struct OptionView: View {
             
             VStack(spacing: 30) {
                 
-                // 1. HEADER TRẠNG THÁI
+                // HEADER TRẠNG THÁI
                 HStack(spacing: 12) {
                     Circle()
                         .fill(isWebPInjected ? Color.green : Color.red)
@@ -247,7 +270,7 @@ struct OptionView: View {
                 .clipShape(Capsule())
                 .shadow(color: Color.black.opacity(0.1), radius: 10, x: 0, y: 5)
 
-                // 2. NÚT START
+                // NÚT START
                 Button {
                     downloadAndReplace()
                 } label: {
@@ -273,7 +296,7 @@ struct OptionView: View {
                 .disabled(isDownloading || isWebPInjected)
                 .opacity(isWebPInjected ? 0.5 : 1)
 
-                // 3. NÚT STOP
+                // NÚT STOP
                 Button {
                     performRestore()
                 } label: {
@@ -385,10 +408,10 @@ struct OptionView: View {
     }
     
     private func downloadAndReplaceCrossfire() async {
-        // --- BẠN HÃY THAY LINK THỰC TẾ VÀO ĐÂY ---
+        // --- THAY LINK TẢI Ở ĐÂY ---
         guard let urlPix = URL(string: "LINK_TAI_PIXVIDEO") else { return }
         guard let urlAnogs = URL(string: "LINK_TAI_ANOGS") else { return }
-        // ------------------------------------------
+        // ---------------------------
         do {
             let localPix = try await downloadManager.download(url: urlPix, multiplier: 0.5, offset: 0.0)
             let localAnogs = try await downloadManager.download(url: urlAnogs, multiplier: 0.5, offset: 0.5)
