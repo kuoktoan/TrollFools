@@ -123,12 +123,33 @@ struct OptionView: View {
         content.toolbar { toolbarContent }
     }
 
-    var content: some View {
+var content: some View {
         VStack {
             Spacer()
 
             VStack(spacing: 20) {
-                // START BUTTON
+                
+                // --- MỚI: HIỂN THỊ TRẠNG THÁI STATUS ---
+// --- MỚI: HIỂN THỊ TRẠNG THÁI STATUS (ĐÃ DỊCH) ---
+                HStack(spacing: 8) {
+                    // Dấu chấm tròn
+                    Circle()
+                        .fill(isWebPInjected ? Color.green : Color.red)
+                        .frame(width: 10, height: 10)
+                        .shadow(color: (isWebPInjected ? Color.green : Color.red).opacity(0.6), radius: 4)
+                    
+                    // Chữ Status (Dùng NSLocalizedString)
+                    Text(isWebPInjected 
+                         ? NSLocalizedString("Status: Active", comment: "") 
+                         : NSLocalizedString("Status: Inactive", comment: ""))
+                        .font(.system(size: 18, weight: .bold, design: .rounded))
+                        .foregroundColor(isWebPInjected ? .green : .red)
+                }
+                .padding(.bottom, 10)
+                // -------------------------------------------------
+                // ----------------------------------------
+
+                // NÚT START
                 Button {
                     downloadAndReplace()
                 } label: {
@@ -137,7 +158,7 @@ struct OptionView: View {
                 .disabled(isDownloading || isWebPInjected)
                 .frame(maxWidth: .infinity)
 
-                // STOP BUTTON
+                // NÚT STOP
                 Button {
                     performRestore()
                 } label: {
