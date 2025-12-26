@@ -25,6 +25,8 @@ struct AppListView: View {
     @State var isWarningPresented = false
     @State var temporaryOpenedURL: URLIdentifiable? = nil
 
+    // Biến này vẫn giữ để logic check update chạy ngầm (nếu cần), 
+    // nhưng không hiển thị ra giao diện nữa.
     @State var latestVersionString: String?
 
     @AppStorage("isAdvertisementHiddenV2")
@@ -152,7 +154,6 @@ struct AppListView: View {
         NavigationView {
             ScrollViewReader { reader in
                 ZStack {
-                    // Gọi trực tiếp listView, không qua refreshableListView nữa
                     listView
                 }
             }
@@ -170,19 +171,18 @@ struct AppListView: View {
             Color(UIColor.systemGroupedBackground)
                 .edgesIgnoringSafeArea(.all)
             
-            // 2. CẤU TRÚC GIAO DIỆN CHÍNH (VStack)
+            // 2. CẤU TRÚC GIAO DIỆN CHÍNH
             VStack(spacing: 0) {
                 
-                // --- PHẦN HEADER CỐ ĐỊNH (KHÔNG CUỘN) ---
+                // --- PHẦN HEADER CỐ ĐỊNH ---
                 HStack(alignment: .center) {
-                    // Tiêu đề
-                    Text(NSLocalizedString("Loader", comment: ""))
+                    Text(NSLocalizedString("KAMUI Loader", comment: ""))
                         .font(.system(size: 34, weight: .heavy, design: .rounded))
                         .foregroundColor(.primary)
                     
                     Spacer()
                     
-                    // NÚT RELOAD THỦ CÔNG (Duy nhất)
+                    // NÚT RELOAD
                     Button {
                         let generator = UIImpactFeedbackGenerator(style: .medium)
                         generator.impactOccurred()
@@ -196,14 +196,13 @@ struct AppListView: View {
                     }
                 }
                 .padding(.horizontal, 20)
-                // Padding top để tránh tai thỏ (vì đã dùng edgesIgnoringSafeArea cho nền)
                 .padding(.top, UIApplication.shared.windows.first?.safeAreaInsets.top ?? 20)
                 .padding(.bottom, 15)
-                .background(Color(UIColor.systemGroupedBackground)) // Nền trùng màu để che nội dung khi cuộn
-                .shadow(color: Color.black.opacity(0.05), radius: 5, x: 0, y: 5) // Bóng đổ nhẹ ngăn cách header
-                .zIndex(1) // Đảm bảo luôn nằm trên list
+                .background(Color(UIColor.systemGroupedBackground))
+                .shadow(color: Color.black.opacity(0.05), radius: 5, x: 0, y: 5)
+                .zIndex(1)
 
-                // --- PHẦN NỘI DUNG CUỘN (SCROLLVIEW) ---
+                // --- PHẦN NỘI DUNG CUỘN ---
                 ScrollView {
                     VStack(spacing: 20) {
                         // DANH SÁCH GAME
@@ -224,20 +223,15 @@ struct AppListView: View {
                             }
                         }
                         .padding(.horizontal, 16)
-                        .padding(.top, 10) // Khoảng cách với Header
+                        .padding(.top, 10)
                         
-                        // FOOTER
-                        if let version = latestVersionString {
-                            Text("Latest version: \(version)")
-                                .font(.caption)
-                                .foregroundColor(.secondary)
-                                .padding(.bottom, 40)
-                        }
+                        // ĐÃ XÓA FOOTER (LATEST VERSION) TẠI ĐÂY
+                        // Chỉ để lại một chút padding dưới cùng để cuộn cho thoáng
+                        Spacer().frame(height: 40)
                     }
                 }
-                // TẮT RELOAD KHI KÉO (Bằng cách không thêm modifier .refreshable)
             }
-            .edgesIgnoringSafeArea(.top) // Để Header tự xử lý padding top
+            .edgesIgnoringSafeArea(.top)
         }
         .navigationBarHidden(true)
     }
