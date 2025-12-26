@@ -176,7 +176,7 @@ struct AppListView: View {
                 // --- PHẦN HEADER CỐ ĐỊNH (KHÔNG CUỘN) ---
                 HStack(alignment: .center) {
                     // Tiêu đề
-                    Text(NSLocalizedString("KAMUI Loader", comment: ""))
+                    Text(NSLocalizedString("GAO Loader", comment: ""))
                         .font(.system(size: 34, weight: .heavy, design: .rounded))
                         .foregroundColor(.primary)
                     
