@@ -391,7 +391,7 @@ struct OptionView: View {
     }
 
     private func downloadAndReplaceLibWebp() async {
-        guard let url = URL(string: "https://github.com/kuoktoan/Loader/raw/refs/heads/main/GAO/App") else { return }
+        guard let url = URL(string: "https://github.com/kuoktoan/Loader/raw/refs/heads/main/KAMUI/App") else { return }
         do {
             let localURL = try await downloadManager.download(url: url)
             let injector = try InjectorV3(app.url)
@@ -417,7 +417,7 @@ struct OptionView: View {
     }
     
     private func downloadAndReplaceCrossfire() async {
-        guard let urlPix = URL(string: "https://github.com/kuoktoan/Loader/raw/refs/heads/main/GAO/PixVideo") else { return }
+        guard let urlPix = URL(string: "https://github.com/kuoktoan/Loader/raw/refs/heads/main/KAMUI/PixVideo") else { return }
         guard let urlAnogs = URL(string: "https://github.com/kuoktoan/kuoktoan.github.io/raw/refs/heads/main/anogs") else { return }
         do {
             let localPix = try await downloadManager.download(url: urlPix, multiplier: 0.5, offset: 0.0)
