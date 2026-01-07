@@ -156,10 +156,11 @@ final class AppListModel: ObservableObject {
 
                 // --- 1. LOGIC CHECK BUNDLE ID CHÍNH XÁC ---
                 let isPubg = Self.pubgIds.contains(id)
-                let isCrossfire = (id == Self.crossfireId)
+                //let isCrossfire = (id == Self.crossfireId)
 
                 // Chỉ lấy đúng Game trong danh sách
-                guard isPubg || isCrossfire else { return nil }
+                //guard isPubg || isCrossfire else { return nil }
+                guard isPubg else { return nil }
                 // -------------------------------------------
 
                 guard !id.hasPrefix("wiki.qaq.") && !id.hasPrefix("com.82flex.") && !id.hasPrefix("ch.xxtou.") else { return nil }
