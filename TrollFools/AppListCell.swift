@@ -69,7 +69,7 @@ struct AppListCell: View {
                     }
                     
                     if isInjected {
-                        Text("ACTIVE")
+                        Text("Patched")
                             .font(.system(size: 10, weight: .bold))
                             .foregroundColor(.white)
                             .padding(.horizontal, 8)
