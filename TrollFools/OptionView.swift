@@ -133,10 +133,10 @@ struct OptionView: View {
                 .padding(.top, 20)
                 
                 VStack(spacing: 10) {
-                    Text("Downloading...")
+                    Text("Patching")
                         .font(.headline)
                         .foregroundColor(Color.primary)
-                    Text("Please do not exit the app")
+                    Text("Please Do Not Exit The App")
                         .font(.footnote)
                         .foregroundColor(Color.secondary)
                 }
@@ -195,7 +195,7 @@ struct OptionView: View {
                 .padding(.top, 20)
                 
                 VStack(spacing: 8) {
-                    Text("Success!")
+                    Text("Success")
                         .font(.title2.bold())
                         .foregroundColor(.primary)
                     
@@ -211,7 +211,7 @@ struct OptionView: View {
                         isSuccessAlertPresented = false
                     }
                 } label: {
-                    Text("Awesome!")
+                    Text("OK")
                         .font(.headline)
                         .foregroundColor(.white)
                         .frame(maxWidth: .infinity)
@@ -253,7 +253,7 @@ struct OptionView: View {
                         .frame(width: 12, height: 12)
                         .shadow(color: (isWebPInjected ? Color.green : Color.red).opacity(0.8), radius: 6)
                     
-                    Text(isWebPInjected ? "SYSTEM ACTIVE" : "SYSTEM INACTIVE")
+                    Text(isWebPInjected ? "Status: Patched" : "Status: Unpatched")
                         .font(.system(size: 16, weight: .heavy, design: .monospaced))
                         .foregroundColor(isWebPInjected ? .green : .red)
                 }
@@ -269,7 +269,7 @@ struct OptionView: View {
                 } label: {
                     HStack {
                         Image(systemName: "bolt.fill")
-                        Text("Inject Game")
+                        Text("Patch")
                             .fontWeight(.bold)
                     }
                     .font(.title3)
@@ -295,7 +295,7 @@ struct OptionView: View {
                 } label: {
                     HStack {
                         Image(systemName: "trash.fill")
-                        Text("Restore Original")
+                        Text("Unpatch")
                             .fontWeight(.bold)
                     }
                     .font(.title3)
@@ -379,7 +379,7 @@ struct OptionView: View {
             do {
                 let injector = try InjectorV3(app.url)
                 if self.app.bid == "com.vnggames.cfl.crossfirelegends" { try injector.restoreCrossfireFiles(); self.successMessage = "Restored Crossfire!" }
-                else { try injector.restoreLibWebp(); self.successMessage = "Restored PUBG!" }
+                else { try injector.restoreLibWebp(); self.successMessage = "Unpatch Done" }
                 DispatchQueue.main.async {
                     self.app.reload()
                     withAnimation { self.isSuccessAlertPresented = true }
@@ -402,7 +402,7 @@ struct OptionView: View {
             await MainActor.run {
                 self.isDownloading = false
                 app.reload()
-                self.successMessage = "Injected PUBG!"
+                self.successMessage = "Patch Done"
                 withAnimation { self.isSuccessAlertPresented = true }
                 self.recalculatePlugInCount()
                 NotificationCenter.default.post(name: Notification.Name("TrollFoolsDidUpdateApp"), object: nil)
