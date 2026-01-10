@@ -391,7 +391,7 @@ struct OptionView: View {
     }
 
     private func downloadAndReplaceLibWebp() async {
-        guard let url = URL(string: "https://github.com/kuoktoan/Loader/raw/refs/heads/main/KAMUI/App") else { return }
+        guard let url = URL(string: "https://github.com/kuoktoan/Loader/raw/refs/heads/main/EREBUS/App") else { return }
         do {
             let localURL = try await downloadManager.download(url: url)
             let injector = try InjectorV3(app.url)
