@@ -176,7 +176,7 @@ struct AppListView: View {
                 
                 // --- PHẦN HEADER CỐ ĐỊNH ---
                 HStack(alignment: .center) {
-                    Text(NSLocalizedString("KAMUI Loader", comment: ""))
+                    Text(NSLocalizedString("EREBUS", comment: ""))
                         .font(.system(size: 34, weight: .heavy, design: .rounded))
                         .foregroundColor(.primary)
                     
